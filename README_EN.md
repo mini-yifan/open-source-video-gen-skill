@@ -1,63 +1,84 @@
-# Short-Drama Production Skill Suite
+# Vibe Video: One Sentence In, a Finished Film Out
+
+**Open-source AI video production skill suite** · Open MiniMax H3 × elastic AutoDL GPUs × fully agent-managed production
 
 English | [简体中文](./README.md)
 
-A short-drama production pipeline built from **9 AI agent skills**: starting from a theme idea, it proceeds through a brief, full-series episode outlines, per-episode screenplays with calibrated dialogue timelines, an art bible, an independent directing pass, MiniMax H3 video generation, cross-episode music reuse, and finally a mixed, finished episode. Every stage has a user approval gate; all state is written to disk so any session can resume from the breakpoint.
+> Bring an idea — a short drama, a product promo, or a ten-second visual gag. One sentence is enough.
+> The AI crew handles everything else: the treatment, the script, the art bible, the directing, the prompts, powering up the server, generating the footage, scoring, mixing, and final review.
+> You only say "approved" or "change this" at four gates.
+>
+> **Generating 10 seconds of 1080p video costs about ¥0.3 (~$0.04)** — because the open-source MiniMax H3 model runs on your own AutoDL instance (no per-video API bill), and the agent powers the GPU on only when there is work, off the moment it's done. You never pay for waiting.
+
+## Why this exists
+
+- **Cheap enough to experiment freely.** An open model on a rented GPU means your cost is compute time, nothing else. The agent manages server power: boot when jobs are ready, shut down when they finish. At roughly ¥0.3 per 10 s of 1080p — far below commercial video-generation pricing — "let me just try this idea" stops being a decision.
+- **Zero video-production background required.** You describe the vibe and the image — "a robotic dog carrying a rose across a neon crosswalk in the rain" — and the AI expands it into a full directing treatment, shot cards, and model prompts, then writes it all down and asks for your sign-off. Humans supply imagination; the agent supplies the craft.
+- **Not just short drama.** Vertical short drama is the most complete pipeline (multi-episode continuation, on-disk state, resumable breakpoints), but the same skills compose into product promos, software demos, creative shorts, and ambient videos — almost any video you can imagine.
+
+## How it works
 
 ```mermaid
 flowchart TD
-    U[User theme] --> A[Stage 1: Brief]
-    A -->|user approves| B[Stage 2: Series outline]
-    B -->|user approves| C[Stage 3: Episode script + dialogue timeline]
-    C -->|user approves| D[Stage 4: Art bible]
-    D -->|user approves| E[Stage 5: Video & music]
-
-    subgraph E [Inside stage 5]
-        E1[Director layer<br/>treatment / shot cards / continuity] --> E2[Storyboard gating<br/>minimal by design]
-        E2 --> E3[H3 prompts]
-        E3 --> E4[Calibration clips first] --> E5[Batch generation]
-        E6[Music: reuse first] -.interleaved with generation.- E5
-        E5 --> E7[Assembly & mixing] --> E8[Dual-channel review]
-    end
-
-    E -->|deliver master + scored cut| F[Next episode]
+    U["Your idea"] --> A["Brief<br/>direction · emotion · tone"]
+    A -->|"✋ you approve"| B[Series outline]
+    B -->|"✋ you approve"| C[Episode script + dialogue timeline]
+    C -->|"✋ you approve"| D["Art bible<br/>characters · props · environments"]
+    D -->|"✋ you approve"| E["Director layer<br/>episode treatment · 5–15 s shot cards"]
+    E --> F[Storyboard gating<br/>reference images only where irreplaceable]
+    F --> G[H3 prompts]
+    G --> H["GPU: auto power-on → generate → auto power-off"]
+    H -.during the wait window.-> M[Music: reuse first]
+    H --> I[Assembly · mixing]
+    M --> I
+    I --> J[Dual-channel review<br/>picture muted / audio only]
+    J --> K[🎬 Finished video]
 ```
 
-## Skills
+**The division of labor is one line: you bring imagination, the AI brings craft.** It never burns money silently — every stage is written into a document and shown to you first; it proceeds only after your explicit "approved," and a "change this" only touches the current stage. Walk away any time; the next session reads the progress file and resumes from the breakpoint with approved content untouched.
 
-| Skill | Role | Stage | External dependency |
-|---|---|---|---|
-| `short-drama-production` | **Orchestrator**: flow state machine, approval gates, directory canon, stage handoff | all | — |
-| `short-drama-screenplay-writing` | Screenwriter: scene design, playable script, character-specific dialogue, timeline projection | 2, 3 | — |
-| `character-three-view` | Art direction: turnarounds / props / environments with per-image review | 4 | — |
-| `cursor-image-gen` | Image execution: local Cursor Agent bitmap generation and editing | 4, 5 | Cursor Agent |
-| `h3-short-drama-director` | Director layer: episode treatment, 5–15 s shot cards, continuity ledger, take review | 5 | — |
-| `h3-prompt-writing` | Prompt conversion: director cards → native H3 prompt bodies | 5 | — |
-| `minimax-h3` | Generation execution: ComfyUI workflow discovery, upload, submit, poll, download | 5 | SeetaCloud / AutoDL ComfyUI |
-| `autodl-app-instance` | Compute switch: API power-on, wait-ready, power-off after the batch | 5 | AutoDL API token |
-| `minimax-music-gen` | Music gap-filler: instrumental cues only where reuse cannot cover | 5 | MiniMax music API |
+## Why it's this cheap
 
-Every skill is also **usable standalone** — writing a script, generating one H3 clip, or producing an art bible can each be triggered directly without the full pipeline.
+1. **Open model, no per-video billing.** MiniMax H3 runs on a ComfyUI instance on AutoDL. You pay GPU rent — there is no API fee per generated clip.
+2. **The agent manages power.** It boots the instance via API only when jobs are ready, submits only after ComfyUI is up, and powers off the moment every task reaches a terminal state (with a failure-path fallback). Music needs no GPU, so it never boots one for audio. Billed time ≈ pure generation time.
+3. **Calibration clips first.** The smallest set of clips validates the directorial voice and highest-risk shots before the full batch — waste and regeneration are minimized.
+4. **Storyboards only where irreplaceable.** Static reference images are generated only for compositions the text and art bible cannot pin down; everything else is left to the model's continuous motion and camera ability.
+5. **Music is reuse-first.** Existing project audio is searched first; anything local trimming, looping, or ducking can adapt is never regenerated.
 
-## Core design
+Actual costs float with AutoDL market prices and instance type; the platform's billing is the source of truth.
 
-1. **Orchestration is separate from craft.** The orchestrator only decides what happens when and who approves it. Every professional rule (emotion and performance, storyboard gating, shot-card schema, dialogue method) has exactly one authoritative file; other skills link to it instead of restating it.
-2. **Single source of truth, projections downstream.** The episode script is the only editable source; the dialogue timeline is a production projection of it — wording changes go back to the script first. Project state lives in `制作进度.md` (progress.md); resuming always continues from the first unapproved stage.
-3. **Quality is enforced by hard gates**, not suggestions:
-   - every emotion needs a full causal chain — trigger → visible performance → tactic change → opponent reaction → changed situation — and finished cuts are reviewed with the sound off, then audio-only;
-   - character uniqueness: a named character appears exactly once per frame; prompts state exact positive counts before negative bans, and frames are spot-checked per segment;
-   - calibration clips come first: validate the directorial voice and highest-risk segments on a small batch before committing;
-   - music is REUSE_FIRST: search this and previous episodes' accepted audio before ever calling a generation API.
+## What you can make
 
-## Requirements and cost
+| Goal | How | Skills needed |
+|---|---|---|
+| Vertical short drama (multi-episode) | Full orchestration with four approval gates | all 9 |
+| Product / brand promo | shot plan → style frames → generate → score | director + image + prompts + generation + music |
+| Software demo | visual description → prompts → generate | prompts + generation |
+| Creative short / ambient video / visual gag | one-sentence vibe → generate | prompts + generation (+ auto power management) |
 
-- **Agent runtime**: ZCode or any CLI agent that supports the Skills convention (`SKILL.md` frontmatter).
-- **MiniMax H3 video generation**: a ComfyUI instance on SeetaCloud or AutoDL (the skill discovers current workflows automatically). **GPU instances bill by usage**; each video batch powers on once and powers off when finished.
-- **Image generation**: a local Cursor Agent (requires a Cursor subscription).
-- **Music generation**: the MiniMax music API (only for cues reuse cannot cover).
-- **Local tools**: `ffmpeg` (assembly and mixing), `ffprobe` (audio QC), Python 3 (generation scripts).
+Try these openers:
 
-Generation costs are charged by the third-party services, not by this repository; make sure published content complies with the platform terms and your local regulations.
+> Use short-drama-production to turn "the deep-sea mail carrier" into a 3-episode vertical short drama, 3 minutes each; start with the brief.
+
+> Use h3-prompt-writing and minimax-h3 to generate a 10-second vertical clip: a robotic dog carrying a rose crosses a zebra crossing on a rainy neon street, slow tracking shot, cyberpunk mood.
+
+> Make a 30-second promo for my note-taking app: have h3-short-drama-director produce the shot plan and director's notes first; generate after I approve.
+
+## Nine skills = one AI crew
+
+| Skill | Crew seat | What it does |
+|---|---|---|
+| `short-drama-production` | Line producer | flow state machine, approval gates, directory canon, resumable state |
+| `short-drama-screenplay-writing` | Screenwriter | scene design, playable scripts, character-specific dialogue, timelines |
+| `character-three-view` | Art director | character / prop / environment specs with per-image review |
+| `cursor-image-gen` | Art execution | bitmap generation and editing via the local Cursor Agent |
+| `h3-short-drama-director` | Director | episode treatment, shot cards, continuity ledger, take review |
+| `h3-prompt-writing` | Prompt writer | translates director cards into native H3 prompts |
+| `minimax-h3` | Soundstage | ComfyUI workflow discovery, upload, submit, poll, download |
+| `autodl-app-instance` | Stagehand | auto power-on, wait-ready, power-off for the GPU server |
+| `minimax-music-gen` | Composer | instrumental cues only where reuse cannot cover |
+
+The drama pipeline hires all nine seats; a single clip hires only what it needs. Every skill works standalone.
 
 ## Installation
 
@@ -72,51 +93,46 @@ for d in skills/*/; do ln -s "$(pwd)/$d" ~/.zcode/skills/"$(basename "$d")"; don
 cp -r skills/* ~/.zcode/skills/
 ```
 
-## Quick start
+## Requirements
 
-Tell your agent:
+- **Agent runtime**: ZCode or any CLI agent supporting the Skills convention (`SKILL.md` frontmatter).
+- **MiniMax H3**: a ComfyUI instance on SeetaCloud or AutoDL (the skill discovers current workflows automatically).
+- **Image generation**: a local Cursor Agent (Cursor subscription required).
+- **Music generation**: the MiniMax music API (gap-filling only).
+- **Local tools**: `ffmpeg` / `ffprobe`, Python 3.
 
-> Use short-drama-production to turn "reincarnation revenge" into a 3-episode vertical short drama, 3 minutes per episode; start with the brief.
+Generation costs are charged by the third-party services, not this repository; make sure published content complies with platform terms and your local regulations.
 
-From there the gates advance: **brief → series outline → episode 1 script + timeline → art → finished episode**. At each gate the agent stops and waits for an explicit "approved" before moving on; saying "continue with episode 2" runs the same loop. Interrupting is safe — the next session reads `制作进度.md` and resumes from the breakpoint.
+## Output: the AI keeps its own books
 
-## Output layout
-
-Every project produces a fixed directory tree that keeps scripts, timelines, art, prompts, clips, and music in their own places:
+Every step of every project lands as a document — treatments, scripts, timelines, art lists, shot cards, storyboard decisions, prompts, generation jobs, take verdicts, music ledgers. You can always see exactly what the AI spent your money on, and resume from any breakpoint.
 
 ```text
 <project>/
-├── 制作进度.md                 # state machine: not started / draft / approved / stale
-├── <title>-Brief.md
-├── <title>-episode-outlines.md
+├── progress.md                   # state machine per stage: draft / approved / stale
+├── <title>-Brief.md / <title>-outlines.md
 ├── music-reuse-ledger.md
 └── episode-01/
-    ├── <title>-ep01-script.md   # the only editable source
+    ├── <title>-ep01-script.md    # the only editable source
     ├── <title>-ep01-timeline.md
-    ├── art/ (turnarounds, expressions, props, environments)
-    └── production/
-        ├── directing/ (treatment, shot list, continuity ledger, calibration & retake log)
-        ├── storyboards/ + storyboard-decisions.md
-        ├── prompts/ (NN-brief.md → NN.txt)
-        ├── clips/ (NN.mp4)
-        └── music/ (score design, reuse log)
+    ├── art/
+    └── production/               # directing, prompts, clips, music
 ```
 
-Final deliveries are `<title>-epNN.mp4` (unscored master) and `<title>-epNN-scored.mp4`.
+## Engineering notes
+
+- **Orchestration is separate from craft**: each rule domain has exactly one authoritative file; skills hand off through explicit contracts, so one episode's retake never ripples through the pipeline.
+- **Single source of truth, projections downstream**: the script is the only editable source; the dialogue timeline is a projection of it.
+- **Quality is enforced by hard gates, not suggestions**: full emotion causal chains with dual-channel review; exactly one instance of each named character per frame, spot-checked; music never drowns dialogue.
 
 ## FAQ
 
-- **Will the H3 prompt syntax drift out of date?** H3 iterates quickly. `h3-prompt-writing` follows the [official MiniMax repository](https://github.com/MiniMax-AI/MiniMax-H3); check there for the latest before updating this repo.
-- **No Cursor / AutoDL access?** The affected stage reports the missing capability and stops. Nothing is faked and no paid service is silently substituted.
+- **Do I need all 9 skills for one 10-second clip?** No. `minimax-h3` + `h3-prompt-writing` is the minimal viable set; add `autodl-app-instance` for automatic power management. The orchestrator is for long-form work.
+- **Where does the price figure come from?** Measured on typical AutoDL instance specs; it floats with market pricing. Your first bill will likely make you check it twice.
+- **Will the H3 prompt syntax drift?** It can. `h3-prompt-writing` follows the [official MiniMax repository](https://github.com/MiniMax-AI/MiniMax-H3); check there before updating.
+- **No Cursor / AutoDL access?** The affected stage reports the missing capability and stops — nothing is faked, no paid service is silently substituted.
 - **Chinese filenames garbled on Windows?** Run `git config --global core.quotepath false`.
-- **Why 9 skills instead of one big one?** Each craft has one rule file and one owner; the agent loads only what a stage needs, and skills hand off through explicit contracts (mode names, `SOURCE_CONFLICT`, `UPSTREAM_CHANGE_REQUEST`), so a retake on one episode never ripples through the whole pipeline.
-
-## Contributing
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md). Model-syntax changes should cite the official repository; directing and screenwriting changes should start from the single authoritative file inside the corresponding skill.
 
 ## License and acknowledgments
 
-[MIT License](./LICENSE).
-
-The directing skill adapts ideas from several open-source projects; their copyright notices and the scope of reuse are recorded in [NOTICE](./NOTICE) and `skills/h3-short-drama-director/references/source-notes.md`. Our thanks to all of them.
+[MIT License](./LICENSE). The directing skill adapts ideas from several open-source projects; copyright notices are collected in [NOTICE](./NOTICE). See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to contribute.
