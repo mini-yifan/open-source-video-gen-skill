@@ -117,6 +117,7 @@ Use the minimum sufficient set:
 - character turnarounds are different views of the same person;
 - costume and identity references do not create extra visible instances;
 - expression references are reserved for acting-critical, high-risk beats;
+- expression references must be single-expression images (one face, one state); never attach a multi-expression grid to an H3 job — the model reads multiple faces in one image as multiple visible instances of the character;
 - environment references define place, not character blocking unless explicitly assigned;
 - composition/storyboard references define static spatial duties only;
 - do not add references as decorative mood filler;
