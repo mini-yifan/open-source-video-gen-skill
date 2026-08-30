@@ -1,0 +1,6 @@
+interface:
+  display_name: "AutoDL App Instance"
+  short_description: "API boot/shutdown AutoDL app GPUs for MiniMax H3"
+  default_prompt: "Use $autodl-app-instance to power on my AutoDL application instance, wait until ComfyUI is ready, then after MiniMax H3 finishes, power it off."
+policy:
+  allow_implicit_invocation: true

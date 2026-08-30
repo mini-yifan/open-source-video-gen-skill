@@ -1,0 +1,4 @@
+interface:
+  display_name: "MiniMax H3 Prompt Writing"
+  short_description: "Write H3 base and full-reference video prompts; accepts minimax-h3 briefs"
+  default_prompt: "Use $h3-prompt-writing to rewrite this request (or the minimax-h3 prompt brief) into a MiniMax H3 generation prompt. Do not connect to ComfyUI or submit a job."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cursor Image Gen"
+  short_description: "Generate images via Cursor Agent"
+  default_prompt: "Use $cursor-image-gen to generate or edit an image with Cursor and save it to the requested folder."

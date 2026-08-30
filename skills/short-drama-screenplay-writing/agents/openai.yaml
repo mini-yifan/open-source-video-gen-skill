@@ -1,0 +1,4 @@
+interface:
+  display_name: "短剧剧本与台词"
+  short_description: "从获批分集概要写可演剧本、精修人物对白并校准台词时间轴"
+  default_prompt: "Use $short-drama-screenplay-writing to draft one episode from the approved brief and outline, then project and calibrate its dialogue timeline."

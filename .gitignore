@@ -1,0 +1,30 @@
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Node
+node_modules/
+
+# Secrets — never commit credentials of any kind
+.env
+.env.*
+*.token
+*.key
+
+# Editors / IDE
+.vscode/
+.idea/
+*.swp
+
+# Local test outputs (placeholder assets inside skill scripts are exempted below)
+out/
+*.mp4
+*.mp3
+!skills/minimax-h3/scripts/blank_1s.mp4
+!skills/minimax-h3/scripts/silence_1s.mp3
