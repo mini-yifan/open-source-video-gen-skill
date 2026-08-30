@@ -50,12 +50,21 @@ description: >-
 
 | 变量 | 必填 | 说明 |
 |---|---|---|
-| `AUTODL_TOKEN` | 是 | autodl.com → 账号 → 设置 → 开发者 Token。**不要**加 `Bearer` |
-| `AUTODL_INSTANCE_UUID` | 建议 | 例如 `pro-78672ec11b9c`（MINIMAX-H3提速500高画质） |
+| `AUTODL_TOKEN` | 是 | autodl.com → 账号 → 设置 → 开发者 Token。**不要**加 `Bearer`。缺环境变量时脚本回退读 `~/.config/autodl.env` |
+| `AUTODL_ENV_FILE` | 否 | 覆盖 Token 私有文件路径，默认 `~/.config/autodl.env` |
+| `AUTODL_INSTANCE_UUID` | 否 | 例如 `pro-78672ec11b9c`（MINIMAX-H3提速500高画质）。**用户不需要记它**，见下 |
 | `AUTODL_APP_HINT` | 否 | 没 UUID 时按应用名匹配，默认 `MINIMAX-H3` |
 | `AUTODL_KEEP_ON` | 否 | 设为 `1` 或用户说「别关 / 保持开机」→ 跳过关机 |
 
-Agent 的 shell **继承不到** 你在另一个终端里的 `export`。Token 要写进 `~/.zshrc` 或 ZCode 环境变量，然后重启 ZCode。**非交互 shell 常常不加载 `~/.zshrc`**：脚本报缺少 Token 时，在命令前显式 `source ~/.zshrc;` 再跑，或改用 `zsh -ic '...'`。
+**Token 存储（推荐私有文件）**：Agent 的 shell **继承不到**另一个终端里的 `export`，非交互 shell 也常常不加载 `~/.zshrc`。推荐写入 `~/.config/autodl.env`：
+
+```bash
+mkdir -p ~/.config && echo 'export AUTODL_TOKEN=你的Token' > ~/.config/autodl.env && chmod 600 ~/.config/autodl.env
+```
+
+脚本缺 Token 时会自动读它，`source ~/.zshrc` / `zsh -ic` 只作为兜底手段。
+
+**缺 Token / 找不到实例时**：向用户原样转达脚本报错中的申请与存储指引，不要绕过。实例解析链为 `--uuid` 参数 → `AUTODL_INSTANCE_UUID` → 按 `AUTODL_APP_HINT` 匹配账号下实例列表：唯一命中自动使用（`boot` 输出会打印 `export AUTODL_INSTANCE_UUID=...` 供本批次复用）；多台命中时把候选表给用户选一次；零台命中时提示用户先去 AutoDL 控制台创建一台 MINIMAX-H3 应用实例（一次性操作）。
 
 ---
 

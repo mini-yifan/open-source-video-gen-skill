@@ -21,27 +21,29 @@ TokenHub. Supports two creation modes: **Basic** (one-sentence-in, song-out) and
 
 ## Prerequisites
 
-- **TokenHub API key**: Set `MINIMAX_API_KEY` in the environment. Never put the key in a
-  prompt, a skill file, a source file, a filename, or a command-line argument.
+- **TokenHub API key**: Set `TOKENHUB_API_KEY` in the environment (the legacy name
+  `MINIMAX_API_KEY` still works). Never put the key in a prompt, a skill file, a source
+  file, a filename, or a command-line argument.
 
   Non-interactive Agent shells may not load `~/.zshrc`. Before checking the variable, load
   the private environment file when it exists:
   ```bash
-  MINIMAX_ENV_FILE="${MINIMAX_MUSIC_ENV_FILE:-$HOME/.config/minimax-music.env}"
-  if [[ -z "${MINIMAX_API_KEY:-}" && -r "$MINIMAX_ENV_FILE" ]]; then
-    source "$MINIMAX_ENV_FILE"
+  TOKENHUB_ENV_FILE="${TOKENHUB_ENV_FILE:-$HOME/.config/tokenhub.env}"
+  if [[ -z "${TOKENHUB_API_KEY:-}" && -r "$TOKENHUB_ENV_FILE" ]]; then
+    source "$TOKENHUB_ENV_FILE"
   fi
   ```
 
   **Verify without printing the key:**
   ```bash
-  test -n "$MINIMAX_API_KEY" && echo "MINIMAX_API_KEY is set" || echo "MINIMAX_API_KEY is missing"
+  test -n "${TOKENHUB_API_KEY:-}${MINIMAX_API_KEY:-}" && echo "TokenHub API key is set" || echo "TokenHub API key is missing"
   ```
 
 - **Python 3**: The bundled `scripts/tokenhub_music_generate.py` uses only the standard
   library, downloads the returned URL immediately, and writes the audio file locally. If a
   non-interactive shell did not inherit the variable, it also reads the private
-  `~/.config/minimax-music.env` fallback file without printing the key.
+  `~/.config/tokenhub.env` fallback file (legacy `~/.config/minimax-music.env` still
+  works) without printing the key.
 
 - **Audio player** (recommended): `mpv`, `ffplay`, or `afplay` (macOS built-in) for local
   playback. `mpv` is preferred for its interactive controls.
@@ -49,7 +51,8 @@ TokenHub. Supports two creation modes: **Basic** (one-sentence-in, song-out) and
 ## TokenHub API
 
 The current integration uses the Tencent Cloud TokenHub endpoint from the user's API
-documentation:
+documentation. Override it with the `TOKENHUB_ENDPOINT` environment variable when
+TokenHub publishes a new path:
 
 ```text
 POST https://tokenhub.tencentmaas.com/v1/wand/minimax-music/generation
@@ -203,7 +206,8 @@ the API.
 ### Step 3: Call TokenHub
 
 Use the bundled helper script. Set `SKILL_DIR` to the directory containing this `SKILL.md`.
-The helper reads `MINIMAX_API_KEY` and never accepts an API key as a CLI argument.
+The helper reads `TOKENHUB_API_KEY` (legacy `MINIMAX_API_KEY` still works) and never accepts
+an API key as a CLI argument.
 
 **Vocal with auto-generated lyrics:**
 ```bash
@@ -312,7 +316,7 @@ songs and instrumentals only, then ask whether to use another provider.
 
 | Error | Action |
 |-------|--------|
-| `MINIMAX_API_KEY` missing | Ask the user to configure the environment variable; never ask them to put it in the prompt |
+| `TOKENHUB_API_KEY` missing (exit code 2) | Ask the user to configure the environment variable or `~/.config/tokenhub.env`; never ask them to put it in the prompt. Inside a video pipeline, apply the skip policy below |
 | HTTP 401/403 | Check TokenHub activation, API key validity, and account permissions |
 | HTTP 402 / code `401007` | In Tencent Cloud Console → TokenHub → Online Inference Service, enable postpaid billing; a Token Plan balance alone may not activate this route. Do not loop retries |
 | HTTP 402 / code `401009` | The specific API Key quota is exhausted. Check TokenHub API Key Management and Token Plan/API Key usage or limits; account balance alone does not prove this Key has remaining quota. Do not loop retries |
@@ -322,6 +326,21 @@ songs and instrumentals only, then ask whether to use another provider.
 | Invalid lyrics format | Auto-fix section markers, warn user |
 | No audio player found | Save file and tell user the path, suggest installing mpv |
 | Network error | Show error detail, suggest checking connection |
+
+### Skip policy inside the video pipeline
+
+Music generation is an **optional enhancement**: MiniMax H3 generated videos carry their
+own audio track. When this skill runs inside a production pipeline (for example
+`short-drama-production`) and the API key is missing, or TokenHub stays unreachable /
+quota-exhausted after the retries allowed above:
+
+1. Do **not** block video delivery and do **not** fake a scored master.
+2. Skip every `待生成` cue; still mix any reused cues that already exist locally.
+3. Tell the user exactly: which cues were not generated, the reason (`TOKENHUB_API_KEY`
+   not configured / TokenHub unreachable / quota exhausted — cite the table row above for
+   the fix), and that the delivered video keeps its native H3 audio track.
+4. Deliver the unscored master and mark the music stage as pending, so a later session
+   with the key configured can fill the gap and produce the scored cut.
 
 ---
 

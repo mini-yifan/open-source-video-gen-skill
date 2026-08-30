@@ -48,8 +48,9 @@ MiniMax H3 单次生成时长为 **5–15 秒**。如果用户指定时长，严
 实例按秒计费。以下链路已用秒表实测：自身开销 ~15s，其余全是 GPU 推理。**核心效率原则：先把队列填满，GPU 绝不空转；等待窗口只用来做本地活；终态即关机。**
 
 ```bash
-# 0) Token 在 ~/.zshrc，但非交互 shell 常不加载——先 source
-source ~/.zshrc
+# 0) Token：推荐写 ~/.config/autodl.env（脚本自动回退读取，无需 source）；
+#    若只写在 ~/.zshrc，非交互 shell 常不加载——先 source
+[ -f ~/.config/autodl.env ] || source ~/.zshrc
 
 # 1) 开机（整个批次只此一次）：三态探活，warm 发现实测 5.8s；冷开机一般 <1min ready
 python3 ~/.zcode/skills/autodl-app-instance/scripts/autodl_app.py boot --uuid <UUID>
@@ -95,7 +96,7 @@ python3 ~/.zcode/skills/autodl-app-instance/scripts/autodl_app.py off --uuid <UU
 3. **占位纪律**：所有媒体槽（包括本次用不到的音频/视频槽）必须填占位文件（暗帧/1s 黑场/1s 静音）。部分实例的 `LoadAudio` 默认指向服务器上的模板文件（如 `p2.MP3`），不占位就会当作参考音频灌进生成，污染画面与声音。
 4. **轮询纪律**：`poll_video.py` 以 **history** 为唯一可信结果来源；任务还在队列里时绝不调 `/api/workflow/result`——部分部署对运行中的 prompt 会返回"最近一个已完成任务"的旧结果，导致重提后下载到旧视频。重新提交任务后，等队列空闲再收文件。
 5. **输出量化**：H3 时长按 17 帧块取整、宽高对齐 32（如请求 720 实得 704）。交付前必须本地归一化（缩放/补边到目标分辨率、裁齐槽长、统一帧率）。
-6. **Token**：Agent 的非交互 shell 可能不会 source `~/.zshrc`；脚本报缺少 `AUTODL_TOKEN` 时，先 `source ~/.zshrc` 或用 `zsh -ic` 重试。
+6. **Token**：脚本报缺少 `AUTODL_TOKEN` 时，先确认 `~/.config/autodl.env` 是否存在（推荐存储方式，脚本自动回退读取）；仍缺则向用户转达申请与存储指引（autodl.com → 账号 → 设置 → 开发者 Token），`source ~/.zshrc` / `zsh -ic` 只作兜底。
 7. **冒烟测试**：新实例/新工作流首次正式生成前，先跑一次"单参考图 → 5 秒视频"最小验证（提示词用 Ref2VA 单 `Picture 1`，一张人设图即可）；全链路（发现→提交→轮询→下载→ffprobe 核时长分辨率）通过后再上批量。完整命令见 `reference.md` 的"单参考图最小验证流程"。
 
 ## 基本流程

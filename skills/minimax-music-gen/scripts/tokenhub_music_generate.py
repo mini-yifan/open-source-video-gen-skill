@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Generate MiniMax Music v2.6 audio through Tencent Cloud TokenHub.
 
-The API key is read only from MINIMAX_API_KEY. It is never accepted as a
-command-line argument, so shell history and process listings do not contain it.
+The API key is read only from TOKENHUB_API_KEY (legacy MINIMAX_API_KEY still
+works), or from a private env file such as ~/.config/tokenhub.env. It is never
+accepted as a command-line argument, so shell history and process listings do
+not contain it.
 """
 
 from __future__ import annotations
@@ -19,8 +21,13 @@ from datetime import datetime
 from pathlib import Path
 
 
-ENDPOINT = "https://tokenhub.tencentmaas.com/v1/wand/minimax-music/generation"
+DEFAULT_ENDPOINT = "https://tokenhub.tencentmaas.com/v1/wand/minimax-music/generation"
 DEFAULT_MODEL = "minimax-music-v2.6"
+
+
+def endpoint() -> str:
+    """TokenHub endpoint; override with TOKENHUB_ENDPOINT."""
+    return os.environ.get("TOKENHUB_ENDPOINT", "").strip().rstrip("/") or DEFAULT_ENDPOINT
 
 
 def tls_context() -> ssl.SSLContext:
@@ -81,7 +88,7 @@ def compact_error(response: object) -> str:
 
 def request_json(payload: dict[str, object], api_key: str) -> dict[str, object]:
     request = urllib.request.Request(
-        ENDPOINT,
+        endpoint(),
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {api_key}",
@@ -152,27 +159,54 @@ def default_output(extension: str) -> Path:
     return directory / f"{stamp}_minimax_music.{extension}"
 
 
+LEGACY_KEY_VAR = "MINIMAX_API_KEY"
+KEY_VAR = "TOKENHUB_API_KEY"
+
+
+def _key_from_env_file(path: Path) -> str | None:
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            parts = shlex.split(line, comments=True)
+            if len(parts) == 2 and parts[0] == "export":
+                assignment = parts[1]
+                for var in (KEY_VAR, LEGACY_KEY_VAR):
+                    if assignment.startswith(f"{var}="):
+                        value = assignment.split("=", 1)[1]
+                        if value:
+                            return value
+    except (OSError, ValueError):
+        pass
+    return None
+
+
 def load_api_key() -> str | None:
-    """Read the inherited env var, with a private-file fallback for Agent shells."""
-    api_key = os.getenv("MINIMAX_API_KEY")
+    """TOKENHUB_API_KEY (legacy MINIMAX_API_KEY) env var, then private env files."""
+    api_key = os.getenv(KEY_VAR, "").strip()
     if api_key:
         return api_key
 
-    env_file = Path(
-        os.getenv(
-            "MINIMAX_MUSIC_ENV_FILE",
-            str(Path.home() / ".config" / "minimax-music.env"),
+    legacy = os.getenv(LEGACY_KEY_VAR, "").strip()
+    if legacy:
+        print(
+            f"note: {LEGACY_KEY_VAR} is deprecated; rename to {KEY_VAR} when convenient.",
+            file=sys.stderr,
         )
-    )
-    try:
-        for line in env_file.read_text(encoding="utf-8").splitlines():
-            parts = shlex.split(line, comments=True)
-            if len(parts) == 2 and parts[0] == "export" and parts[1].startswith("MINIMAX_API_KEY="):
-                value = parts[1].split("=", 1)[1]
-                if value:
-                    return value
-    except (OSError, ValueError):
-        pass
+        return legacy
+
+    override = os.getenv("TOKENHUB_ENV_FILE", "").strip()
+    if override:
+        candidates = [Path(override)]
+    else:
+        candidates = [Path.home() / ".config" / "tokenhub.env"]
+        legacy_file = os.getenv("MINIMAX_MUSIC_ENV_FILE", "").strip()
+        candidates.append(
+            Path(legacy_file) if legacy_file else Path.home() / ".config" / "minimax-music.env"
+        )
+    for candidate in candidates:
+        if candidate.is_file():
+            api_key = _key_from_env_file(candidate)
+            if api_key:
+                return api_key
     return None
 
 
@@ -180,7 +214,15 @@ def main() -> int:
     args = parse_args()
     api_key = load_api_key()
     if not api_key:
-        print("MINIMAX_API_KEY is not set", file=sys.stderr)
+        print(
+            "缺少 TOKENHUB_API_KEY（旧名 MINIMAX_API_KEY 仍兼容）。这是可选能力，"
+            "不配置时视频流水线会跳过独立背景音乐（MiniMax H3 生成的视频自带音轨）。\n"
+            "如需配置：\n"
+            "  1) 在腾讯云控制台 → TokenHub 创建 API Key；\n"
+            "  2) 写入环境变量，或保存到 ~/.config/tokenhub.env（内容：export TOKENHUB_API_KEY=...，chmod 600）。\n"
+            "本脚本不接受命令行传 key。",
+            file=sys.stderr,
+        )
         return 2
     if not args.prompt.strip() or len(args.prompt) > 2000:
         print("--prompt must be 1-2000 characters", file=sys.stderr)

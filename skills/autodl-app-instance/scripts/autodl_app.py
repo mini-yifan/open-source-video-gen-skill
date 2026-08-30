@@ -3,7 +3,8 @@
 """AutoDL 应用实例：list / status / power-on / power-off / boot / ensure / snapshot.
 
 环境变量:
-  AUTODL_TOKEN            开发者 Token（不要加 Bearer）
+  AUTODL_TOKEN            开发者 Token（不要加 Bearer）；缺环境变量时回退读
+                          ~/.config/autodl.env（可用 AUTODL_ENV_FILE 覆盖路径）
   AUTODL_INSTANCE_UUID    默认实例，如 pro-78672ec11b9c
   AUTODL_APP_HINT         无 UUID 时按应用名匹配，默认 MINIMAX-H3
   AUTODL_API_BASE         默认 https://www.autodl.art
@@ -37,12 +38,36 @@ def connect_server_path() -> Path:
     sys.exit("找不到 minimax-h3 connect_server.py")
 
 
+def _token_from_env_file(path: Path) -> str:
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            parts = line.split("=", 1)
+            if len(parts) == 2 and parts[0].strip().removeprefix("export ").strip() == "AUTODL_TOKEN":
+                value = parts[1].strip().strip("'\"")
+                if value:
+                    return value
+    except OSError:
+        pass
+    return ""
+
+
 def token() -> str:
     t = os.environ.get("AUTODL_TOKEN", "").strip()
     if not t:
+        override = os.environ.get("AUTODL_ENV_FILE", "").strip()
+        candidates = [Path(override)] if override else [Path.home() / ".config" / "autodl.env"]
+        for candidate in candidates:
+            if candidate.is_file():
+                t = _token_from_env_file(candidate)
+                if t:
+                    break
+    if not t:
         sys.exit(
-            "缺少 AUTODL_TOKEN。在 ~/.zshrc 或 ZCode 环境变量里设置开发者 Token，"
-            "不要加 Bearer。终端里 export 不会传到 Agent。"
+            "缺少 AUTODL_TOKEN（视频生成必需，无替代）。\n"
+            "申请：autodl.com → 账号 → 设置 → 开发者 Token（不要加 Bearer）。\n"
+            "存储（三选一）：ZCode 环境变量；~/.zshrc；~/.config/autodl.env\n"
+            '  （内容：export AUTODL_TOKEN=...，chmod 600，Agent 非交互 shell 也能直接读取）。\n'
+            "注意：终端里 export 不会传到 Agent。"
         )
     if t.lower().startswith("bearer "):
         t = t.split(" ", 1)[1].strip()

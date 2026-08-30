@@ -95,11 +95,22 @@ cp -r skills/* ~/.zcode/skills/
 
 ## Requirements
 
-- **Agent runtime**: ZCode or any CLI agent supporting the Skills convention (`SKILL.md` frontmatter).
-- **MiniMax H3**: a ComfyUI instance on SeetaCloud or AutoDL (the skill discovers current workflows automatically).
-- **Image generation**: a local Cursor Agent (Cursor subscription required).
-- **Music generation**: the MiniMax music API (gap-filling only).
-- **Local tools**: `ffmpeg` / `ffprobe`, Python 3.
+Dependencies come in three tiers — whatever is missing, the AI tells you on the spot how to fix it (the detailed setup guide is in Chinese, since the services involved are China-based):
+
+| Tier | Dependency | If missing |
+|---|---|---|
+| Hard-required | AutoDL account + MINIMAX-H3 instance + developer token | video generation blocks with setup guidance |
+| Replaceable default | image generation (Cursor Agent by default; swap in Codex built-in image gen or others) | the AI guides login or switches to your alternative tool |
+| Optional enhancement | TokenHub music API (`TOKENHUB_API_KEY`) | standalone BGM is skipped; H3 videos carry their own audio track |
+
+You also need an agent runtime (ZCode or any CLI agent supporting the Skills convention) and local tools: `ffmpeg` / `ffprobe` / `python3` / `node`.
+
+Full setup tutorial: [SETUP.md](./SETUP.md) (Chinese). One-shot self-check:
+
+```bash
+bash scripts/doctor.sh          # check credentials and tools
+bash scripts/doctor.sh --probe  # additionally probe live endpoints
+```
 
 Generation costs are charged by the third-party services, not this repository; make sure published content complies with platform terms and your local regulations.
 

@@ -95,11 +95,22 @@ cp -r skills/* ~/.zcode/skills/
 
 ## 环境要求
 
-- **Agent 运行时**：ZCode 或任何支持 Skills 约定（`SKILL.md` frontmatter）的 CLI Agent。
-- **MiniMax H3**：SeetaCloud 或 AutoDL 上的 ComfyUI 实例（技能会自动发现当前工作流）。
-- **图像生成**：本地 Cursor Agent（需 Cursor 订阅）。
-- **音乐生成**：MiniMax 音乐 API（仅补缺口时调用）。
-- **本地工具**：`ffmpeg` / `ffprobe`、Python 3。
+依赖分三级，缺哪级 AI 都会当场告诉你怎么补：
+
+| 级别 | 依赖 | 不配会怎样 |
+|---|---|---|
+| 硬必需 | AutoDL 账号 + MINIMAX-H3 实例 + 开发者 Token | 无法生成视频，AI 停下并给配置指引 |
+| 默认可换 | 生图（默认 Cursor Agent；可换 Codex 自带生图等） | AI 引导登录或切换替代工具 |
+| 可选增强 | TokenHub 音乐 API（`TOKENHUB_API_KEY`） | 跳过独立背景音乐；H3 生成的视频自带音轨 |
+
+另需 Agent 运行时（ZCode 或任何支持 Skills 约定的 CLI Agent）和本地工具 `ffmpeg` / `ffprobe` / `python3` / `node`。
+
+**完整配置教程见 [SETUP.md](./SETUP.md)**（注册、申请、存储、验证、常见报错全覆盖）；一键自检：
+
+```bash
+bash scripts/doctor.sh          # 检查凭证与工具
+bash scripts/doctor.sh --probe  # 额外真实探活
+```
 
 生成费用由所用第三方服务收取，与本仓库无关；发布生成内容前请确认符合平台条款与当地法规。
 
