@@ -51,7 +51,7 @@ Actual costs float with AutoDL market prices and instance type; the platform's b
 
 | Goal | How | Skills needed |
 |---|---|---|
-| Vertical short drama (multi-episode) | Full orchestration with four approval gates | all 9 |
+| Vertical short drama (multi-episode) | Full orchestration with four approval gates | all 10 |
 | Product / brand promo | shot plan → style frames → generate → score | director + image + prompts + generation + music |
 | Software demo | visual description → prompts → generate | prompts + generation |
 | Creative short / ambient video / visual gag | one-sentence vibe → generate | prompts + generation (+ auto power management) |
@@ -64,7 +64,7 @@ Try these openers:
 
 > Make a 30-second promo for my note-taking app: have h3-short-drama-director produce the shot plan and director's notes first; generate after I approve.
 
-## Nine skills = one AI crew
+## Ten skills = one AI crew
 
 | Skill | Crew seat | What it does |
 |---|---|---|
@@ -77,8 +77,10 @@ Try these openers:
 | `minimax-h3` | Soundstage | ComfyUI workflow discovery, upload, submit, poll, download |
 | `autodl-app-instance` | Stagehand | auto power-on, wait-ready, power-off for the GPU server |
 | `minimax-music-gen` | Composer | instrumental cues only where reuse cannot cover |
+| `qwen3-tts` | Voice actor | Qwen3-TTS dubbing: described voices / built-in speakers / voice clone |
+| `qwen3-tts` | Voice actor | Qwen3-TTS dubbing: described voices / built-in speakers / voice clone |
 
-The drama pipeline hires all nine seats; a single clip hires only what it needs. Every skill works standalone.
+The drama pipeline hires all ten seats; a single clip hires only what it needs. Every skill works standalone.
 
 ## Installation
 
@@ -101,7 +103,7 @@ Dependencies come in three tiers — whatever is missing, the AI tells you on th
 |---|---|---|
 | Hard-required | AutoDL account + MINIMAX-H3 instance + developer token | video generation blocks with setup guidance |
 | Replaceable default | image generation (Cursor Agent by default; swap in Codex built-in image gen or others) | the AI guides login or switches to your alternative tool |
-| Optional enhancement | TokenHub music API (`TOKENHUB_API_KEY`) | standalone BGM is skipped; H3 videos carry their own audio track |
+| Optional enhancement | TokenHub music API (`TOKENHUB_API_KEY`), Qwen3-TTS dubbing (same token; the instance must have the TTS node) | each is skipped independently; H3 videos carry their own audio and dialogue |
 
 You also need an agent runtime (ZCode or any CLI agent supporting the Skills convention) and local tools: `ffmpeg` / `ffprobe` / `python3` / `node`.
 
@@ -138,7 +140,7 @@ Every step of every project lands as a document — treatments, scripts, timelin
 
 ## FAQ
 
-- **Do I need all 9 skills for one 10-second clip?** No. `minimax-h3` + `h3-prompt-writing` is the minimal viable set; add `autodl-app-instance` for automatic power management. The orchestrator is for long-form work.
+- **Do I need all 10 skills for one 10-second clip?** No. `minimax-h3` + `h3-prompt-writing` is the minimal viable set; add `autodl-app-instance` for automatic power management. The orchestrator is for long-form work.
 - **Where does the price figure come from?** Measured on typical AutoDL instance specs; it floats with market pricing. Your first bill will likely make you check it twice.
 - **Will the H3 prompt syntax drift?** It can. `h3-prompt-writing` follows the [official MiniMax repository](https://github.com/MiniMax-AI/MiniMax-H3); check there before updating.
 - **No Cursor / AutoDL access?** The affected stage reports the missing capability and stops — nothing is faked, no paid service is silently substituted.

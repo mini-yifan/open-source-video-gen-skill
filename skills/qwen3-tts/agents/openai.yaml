@@ -1,0 +1,6 @@
+interface:
+  display_name: "Qwen3-TTS 配音"
+  short_description: "在 AutoDL 实例上用 Qwen3-TTS 生成配音、旁白与声音克隆"
+  default_prompt: "Use $qwen3-tts to generate a voiceover for my video."
+policy:
+  allow_implicit_invocation: true

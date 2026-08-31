@@ -6,7 +6,7 @@
 |---|---|---|
 | 🔴 硬必需 | [AutoDL 账号 + 实例 + Token](#1-硬必需autodl-账号实例与-token) | 无法生成视频，AI 会停下并告诉你怎么配 |
 | 🟡 默认可换 | [生图能力](#2-默认可换生图默认-cursor可换-codex-等)（默认 Cursor） | AI 会引导你登录 Cursor，或改用其他生图工具（如 Codex 自带生图） |
-| 🟢 可选增强 | [TokenHub 音乐 API](#3-可选增强tokenhub-音乐生成) | 跳过独立背景音乐；**H3 生成的视频自带音轨，成片照样有声** |
+| 🟢 可选增强 | [TokenHub 音乐 API](#3-可选增强tokenhub-音乐生成) 与 [Qwen3-TTS 配音](#另一个可选增强qwen3-tts-配音) | 各自跳过；**H3 生成的视频自带音轨与对白，成片照样有声** |
 
 配置完任何一步，都可以跑 [一键自检](#4-一键自检) 验证。
 
@@ -88,6 +88,13 @@ chmod 600 ~/.config/tokenhub.env
 
 > 兼容说明：旧版本变量名 `MINIMAX_API_KEY` 和旧文件 `~/.config/minimax-music.env` 仍然有效，择机迁移即可。端点默认 `https://tokenhub.tencentmaas.com/v1/wand/minimax-music/generation`，可用 `TOKENHUB_ENDPOINT` 环境变量覆盖。
 
+### 另一个可选增强：Qwen3-TTS 配音
+
+旁白、画外音、特定声线（甜妹音、低沉旁白）或声音克隆由 `qwen3-tts` 技能完成，跑在与 H3 **同一台** AutoDL 实例上。**不需要任何新凭证**——用的就是同一个 `AUTODL_TOKEN`。唯一要求：
+
+- 实例需预装 `ComfyUI-TD-Qwen3TTS` 节点与 Qwen3-TTS 1.7B 模型。选实例时留意镜像描述；报 `TTS_NODE_MISSING` 说明当前实例没装，换预装实例即可，不要在视频实例上临时安装。
+- 不配置的效果：AI 不做独立配音，交付 H3 自带音轨（含 H3 自己生成的对白）的成片，并说明跳过原因。首次生成需加载 3.8GB 模型（约 40–60 秒），属正常等待。
+
 ---
 
 ## 4. 一键自检
@@ -113,6 +120,7 @@ bash scripts/doctor.sh --probe  # 额外真实探活（调 AutoDL API 列实例�
 | `缺少 TOKENHUB_API_KEY`（退出码 2） | 音乐 key 未配置（可选能力） | 不影响出片；想配按 3.4 |
 | TokenHub `HTTP 402 / 401007` | 未开通后付费计费 | 腾讯云控制台 → TokenHub → 在线推理服务，启用后付费 |
 | TokenHub `HTTP 402 / 401009` | 该 API Key 配额耗尽 | TokenHub API Key 管理里查配额；账户余额≠Key 配额 |
+| TTS 报 `TTS_NODE_MISSING` | 实例未预装 Qwen3TTS 节点（可选能力） | 换预装节点与模型的实例；不在视频实例上临时安装 |
 | `--doctor` 报 `logged_in: false` | Cursor Agent 未登录 | `cursor-agent login` 或设 `CURSOR_API_KEY`；或改用其他生图工具 |
 | 脚本能跑但 Agent 报缺 Token | 非交互 shell 不加载 `~/.zshrc` | 用 `~/.config/autodl.env` 私有文件方案 |
 
