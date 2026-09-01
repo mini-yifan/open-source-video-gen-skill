@@ -1,4 +1,4 @@
 interface:
   display_name: "H3 短剧导演"
-  short_description: "把获批短剧转成有统一导演意图的 MiniMax H3 镜头方案"
-  default_prompt: "Use $h3-short-drama-director to direct this approved short-drama episode into H3-ready shot cards and prompt briefs."
+  short_description: "把获批短剧切成 H3 片段，产出视觉风格块、镜头卡与提示词 brief"
+  default_prompt: "Use $h3-short-drama-director to direct this approved short-drama episode into H3-ready shot cards."

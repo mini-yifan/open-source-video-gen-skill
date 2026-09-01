@@ -1,10 +1,10 @@
 # ComfyUI / minimax-h3 handoff
 
-Use this file only when the caller supplies an **H3 prompt brief**. Lock `prompt_mode` from the brief. Write the official structure from `base-en.txt` or `ref-en.txt`, then apply the override table. Do not SSH or submit jobs.
+Use this file only when the caller supplies a **structured handoff** — a locked director card from `h3-short-drama-director`, or a `minimax-h3` brief. Lock `prompt_mode` from it. Write the official structure from `base-en.txt` or `ref-en.txt`, then apply the override table. Do not SSH or submit jobs.
 
 ## Overrides (brief present)
 
-| Topic | Official (no brief) | This pipeline (brief present) |
+| Topic | Official (no handoff) | This pipeline (handoff present) |
 |---|---|---|
 | On-screen text | Quote visible letters in the scene | Do not ask the model to paint captions, UI, subtitles, or readable signs |
 | Unused video/audio | Do not create labels for unused assets | One unlabeled ignore / `weak_reference` stanza; **do not** assign `<Video N>` or `<Audio N>` to placeholders |
@@ -13,11 +13,11 @@ Use this file only when the caller supplies an **H3 prompt brief**. Lock `prompt
 | Picture labels | Standalone `<Picture N>` only for keyframes | Cite slot `<Picture N>` inside `<Subject N>`; turnarounds are identity locks, not I2VA frame 0 |
 | Character count | Describe the subjects in each shot | Obey `VISIBLE_CAST`; state the exact visible instance count of every named character and carry `IDENTITY_CONTINUITY` plus `DUPLICATION_GUARD` into the official prompt body |
 
-If the brief's `prompt_mode` disagrees with a naive reading of the images, **trust the brief**.
+If the handoff's `prompt_mode` disagrees with a naive reading of the images, **trust the handoff**.
 
 ## Character uniqueness and duplicate suppression
 
-When the brief contains named characters, write positive exact counts before negative exclusions. Do not leave these constraints only in the brief.
+When the handoff contains named characters, write positive exact counts before negative exclusions. Do not leave these constraints only in the handoff.
 
 - In T2VA / I2VA / FL2VA / L2VA, place them naturally in `integrated_multimodal_description`; in Ref2VA, place them in `subject_definitions`, `summary` when useful, and `detailed_description`.
 - For each shot, translate `VISIBLE_CAST` into wording such as `Exactly one young woman is visible in this shot` or `Exactly one instance of <Subject 1> and exactly one instance of <Subject 2> are visible in the frame.` A voiceover or off-screen speaker has a visible count of zero.
@@ -25,10 +25,10 @@ When the brief contains named characters, write positive exact counts before neg
 - Add the relevant exclusions in natural English: `No duplicate, clone, twin, doppelganger, extra copy, lookalike, ghost image, afterimage, motion trail, split body, or suddenly appearing extra person.` For crowd scenes add: `Background extras must not resemble any named character.`
 - When several pictures show the same character, define only one subject: `<Subject 1> is one single physical person whose alternate identity views come from <Picture 1>, <Picture 2>, and <Picture 3>; these pictures show the same person, not multiple people.` Never turn alternate views, turnaround panels, expression sheets, or costume references into separate on-screen instances.
 - Unless the story requires them, avoid mirrors, glass reflections, human-shaped shadows, motion echoes, or temporal overlays that could read as another body. If a mirror is required, state that there is one physical person and one synchronized optical reflection, not a second independent person.
-- A narrative clone, split self, mirror person, or multiple time-state version is an exception only when the brief explicitly authorizes it. Give every authorized instance a distinct position and visible discriminator; do not relax the rule for other characters.
+- A narrative clone, split self, mirror person, or multiple time-state version is an exception only when the handoff explicitly authorizes it. Give every authorized instance a distinct position and visible discriminator; do not relax the rule for other characters.
 - If exact counting conflicts with vague crowd wording, preserve exact counts for named characters and simplify the crowd description.
 
-## After the brief is chosen: which guide
+## After the handoff mode is set: which guide
 
 | `prompt_mode` | Guide | How to write |
 |---|---|---|
@@ -40,7 +40,7 @@ When the brief contains named characters, write positive exact counts before neg
 
 ## Picture slots vs `<Subject N>`
 
-Upload order in the brief **is** `<Picture 1>`…`<Picture 9>` (max 9). Cite only the pictures that were actually uploaded. For Ref2VA identity stills:
+Upload order declared in the handoff **is** `<Picture 1>`…`<Picture 9>` (max 9). Cite only the pictures that were actually uploaded. For Ref2VA identity stills:
 
 ```text
 <Subject 1> is the young woman whose face and costume come from <Picture 1>. Do not copy the white studio backdrop or turnaround grid in <Picture 1>.
@@ -61,7 +61,7 @@ Do **not** define extra `<Picture N>`, `<Video 1>`–`<Video 3>`, or `<Audio 1>`
 - Match `duration_seconds`. Do not write a 4-second timeline.
 - `cuts: hard cuts` → later shots `[Shot N] At MM:SS.mmm, the camera cuts to...`
 - `cuts: one continuous take, do not cut` → one `[Shot 1]`; state that phrase; no extra cut times.
-- 10–15 seconds: 2–4 shots unless the brief says otherwise.
+- 10–15 seconds: 2–4 shots unless the handoff says otherwise.
 
 ## Example: U06 Ref2VA
 

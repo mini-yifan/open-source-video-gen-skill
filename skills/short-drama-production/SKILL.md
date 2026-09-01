@@ -4,7 +4,7 @@ description: >-
   Orchestrate an end-to-end short-drama production from a user's theme through
   approved brief, complete episode outlines, playable per-episode screenplays with
   character-specific dialogue followed by calibrated dialogue timelines, art bible, episode
-  directing, H3 shot design, storyboard decisions, MiniMax H3 generation,
+  directing, H3 shot design, MiniMax H3 generation,
   scene-aware background music, audio mixing, QA, and a finished video. Use when a user
   wants an AI agent to turn a short-drama idea into an episode-organized
   production, or to resume such a project. For writing or revising a single
@@ -23,9 +23,9 @@ description: >-
 3. 用户提出修改时，只修改当前阶段并重新确认；上游通过的内容被修改后，把受影响的下游状态改回 `待更新`，不沿用旧内容。
 4. 不把 Token、SSH 密码、服务器密码写进项目文件、提示词或本技能。
 5. 情绪、表情、演技和节奏是全流程硬指标，统一执行 [短剧情绪表演与节奏规则.md](references/短剧情绪表演与节奏规则.md)：情绪必须有触发、强度递进、可见表演、对手反应和局面后果；各阶段按该规则的分阶段要求写作与验收。
-6. 分镜参考图是稀缺的静态空间约束，不是逐片段镜头清单；是否生成、生成几张，统一按 [Minimax_H3分镜参考图判定规则.md](references/Minimax_H3分镜参考图判定规则.md) 判定。动作、表演、运镜和时序由 H3 prompt 决定，永远不由静态图决定。
+6. 分镜参考图默认不生成；仅当用户明确要求时，按用户指定的片段范围与数量制作。动作、表演、运镜和时序由 H3 prompt 决定，永远不由静态图决定。
 7. 角色唯一性是视频生成硬指标：除非剧情明确需要分身、克隆、镜中人或多个时间态，同一具名角色在同一画面只能出现一次。每段 prompt 先正向精确计数，再补负向禁令，验收时逐段抽帧检查。逐镜头人数由导演卡 `VISIBLE_CAST` 承载，英文约束模板与最终提示词落点由 `h3-prompt-writing` 承载。表情参考只能以单表情图进入 H3（网格生成→切分流程见 `character-three-view`），多表情拼图禁止作为参考图。
-8. 本集美术通过后先完成独立导演层，再写最终 H3 提示词。导演层统一整集意图、POV、权力变化、潜台词、表演因果、调度、运镜理由、声音和连续性；`h3-prompt-writing` 只把已锁定的导演镜头卡转换成 H3 原生提示词，不得用模型语法反向替代导演判断。
+8. 本集美术通过后先完成独立导演层，再写最终 H3 提示词。导演层只产出模型可执行的内容：全集视觉风格块（风格 token、调色、光线、镜头语言）、按戏剧动作切段、每段动作与表演链、动机化运镜与光线声音设计、精确人数、防复制约束和段间连续性；不写抽象导演意图或不进提示词的内部字段。`h3-prompt-writing` 只把已锁定的导演镜头卡转换成 H3 原生提示词，不得用模型语法反向替代导演判断。
 9. 配乐执行 REUSE_FIRST：为第 N 集调用任何音乐生成 API 前，必须先检索本集已有音频、前 `1..N-1` 集已验收音频和 `音乐素材复用台账.md`；本地裁剪、循环、淡入淡出、均衡或对白闪避即可适配的 cue 不得重新生成。默认无主唱器乐，音乐服务表演，不盖对白。
 
 进入新阶段时按阶段说明读取对应规则与配套技能的 `SKILL.md` 后再行动；同一文档已完整存在于当前上下文时不必重复读取。不要凭记忆重写配套技能的参数或格式。
@@ -68,7 +68,6 @@ description: >-
 │   └── 视频制作/
 │       ├── 导演/
 │       │   └── 片段/
-│       ├── 分镜参考图判定.md
 │       ├── 分镜参考图/
 │       ├── 提示词/
 │       ├── 片段/
@@ -138,15 +137,15 @@ Brief 通过后更新 `制作进度.md`，再进入阶段二。
 
 ### 导演层
 
-调用 [`h3-short-drama-director`](../h3-short-drama-director/SKILL.md)，提供获批 Brief、全剧概要、本集台词时间轴、剧本、美术和上一个已接受结尾。由它检查 `SOURCE_CONFLICT`，输出 `视频制作/导演/00-本集导演方案.md`、`01-导演镜头表.md`、`02-连续性与参考素材台账.md`、`片段/NN-导演卡.md` 和 `03-校准片方案.md`，把时间轴拆成 5–15 秒片段，并逐镜头给出 `VISIBLE_CAST` 精确实例数。冲突不改变故事含义或角色身份时不新增用户确认关卡。
+调用 [`h3-short-drama-director`](../h3-short-drama-director/SKILL.md)，提供获批 Brief、全剧概要、本集台词时间轴、剧本、美术和上一个已接受结尾。由它检查 `SOURCE_CONFLICT`，输出 `视频制作/导演/01-导演镜头表.md`（顶部含本集视觉风格块）、`02-连续性与参考素材台账.md`、`片段/NN-导演卡.md`、`03-校准片方案.md` 和 `04-样片与返修记录.md`，把时间轴拆成 5–15 秒片段，并逐镜头给出 `VISIBLE_CAST` 精确实例数。冲突不改变故事含义或角色身份时不新增用户确认关卡。
 
 ### 分镜参考图
 
-依据已锁定的导演卡，按 [Minimax_H3分镜参考图判定规则.md](references/Minimax_H3分镜参考图判定规则.md)（唯一规则源）完成全部片段的触发判定，把全局判定结果写入 `视频制作/分镜参考图判定.md`。用 [`cursor-image-gen`](../cursor-image-gen/SKILL.md) 只为入选片段生成已批准数量的单帧参考图，存入 `分镜参考图/`，逐张验收。
+默认不生成分镜参考图：动作、表演、运镜和时序始终由 H3 prompt 决定。仅当用户明确要求本集配备分镜参考图时才制作：按用户指定的片段范围与数量，用 [`cursor-image-gen`](../cursor-image-gen/SKILL.md) 生成单帧参考图存入 `分镜参考图/`，逐张验收。用户未给规格时按最小可用执行：相关片段默认 1 张独立单帧，同一角色在图中只出现一次，人物保持中性静态姿态，画幅与成片一致。用户要求分镜的片段，其导演卡加入 `STORYBOARD_LIMIT`：只参考静态构图与空间关系，不把图当动作关键帧或姿势模板；与用户要求冲突时，以用户要求为准。
 
 ### 片段提示词
 
-从每张锁定的导演卡生成 `视频制作/提示词/NN-brief.md`，字段按导演技能的 handoff schema（`h3-shot-design.md`）填写，必须包含精确角色计数、`IDENTITY_CONTINUITY`、`DUPLICATION_GUARD`、`MOTION_AUTHORITY: H3_PROMPT`，有分镜时包含 `STORYBOARD_LIMIT`。交给 [`h3-prompt-writing`](../h3-prompt-writing/SKILL.md) 生成 `视频制作/提示词/NN.txt`；精确计数和防复制约束必须进入最终提示词正文，不能只留在 brief 中。
+不设中间 brief 文件：由 [`h3-prompt-writing`](../h3-prompt-writing/SKILL.md) 直接读取每张已锁定的导演卡，连同 `01-导演镜头表.md` 顶部的视觉风格块、`SOURCE_LINES` 指向的剧本与时间轴段落以及美术素材，生成 `视频制作/提示词/NN.txt`。导演卡必须携带技术信封（workflow、prompt_mode、画幅、分辨率、参考图上传顺序）和精确角色计数、`IDENTITY_CONTINUITY`、`DUPLICATION_GUARD`、`MOTION_AUTHORITY: H3_PROMPT`，用户要求分镜的片段携带 `STORYBOARD_LIMIT`。精确计数和防复制约束必须进入最终提示词正文，不能只留在导演卡中。
 
 ### 配乐设计
 
@@ -179,9 +178,9 @@ MiniMax H3 生成的片段自带对白与音效，TTS 配音是可选增强：�
 
 ### 验收与交付
 
-先由导演技能逐段给出 `KEEP | FIX_IN_POST | REGENERATE | REWRITE_PROMPT | SPLIT_SEGMENT` 创意裁决，再验收两个版本。创意层查导演意图、表演因果、POV、权力变化、潜台词、走位、运镜动机、反应与余波、连续性；技术层查片段顺序、解码、时长、画幅、对白清晰度、音乐进入点、爆音、分镜命中与运镜真实性（应看到戏剧原因驱动的连续运镜，不能是多张参考图之间的机械切换）。逐段抽帧检查角色进入、快速运动、遮挡解除和片尾等高风险时刻，对照 `VISIBLE_CAST` 核对人数与身份；任何一帧出现同一具名角色的多个实体、相同脸群演、无叙事依据的镜像副本或身体分裂，该片段验收失败，必须重生成。返修一次只改一个主要变量，简化顺序按导演技能的 take review 执行。情绪双通道验收（静音看画面、只听声音）按情绪规则执行，任一通道不成立不算完成。
+先由导演技能逐段给出 `KEEP | FIX_IN_POST | REGENERATE | REWRITE_PROMPT | SPLIT_SEGMENT` 创意裁决，再验收两个版本。创意层查表演因果、走位、运镜动机、光线声音是否服务本段、反应与余波、连续性；技术层查片段顺序、解码、时长、画幅、对白清晰度、音乐进入点、爆音与运镜真实性（应看到戏剧原因驱动的连续运镜，不能是多张参考图之间的机械切换；使用了分镜参考图的片段，逐张核对静态空间职责是否命中）。逐段抽帧检查角色进入、快速运动、遮挡解除和片尾等高风险时刻，对照 `VISIBLE_CAST` 核对人数与身份；任何一帧出现同一具名角色的多个实体、相同脸群演、无叙事依据的镜像副本或身体分裂，该片段验收失败，必须重生成。返修一次只改一个主要变量，简化顺序按导演技能的 take review 执行。情绪双通道验收（静音看画面、只听声音）按情绪规则执行，任一通道不成立不算完成。
 
-交付无配乐母版、配乐版成片、音乐素材、片段清单、分镜判定和制作记录，报告本集 `直接复用 / 适配复用 / 新生成` 的 cue 数量，并询问修改方向。修改影响剧本、美术、分镜或配乐进入点时，退回相应阶段重新确认。`TOKENHUB_API_KEY` 未配置或 TokenHub 不可达时按上表降级：跳过待生成 cue，交付自带 H3 音轨的母版并明确说明未生成清单与配置方法；复用已覆盖全部 cue 时正常交付。任何时候不因音乐失败伪装完成配乐版。
+交付无配乐母版、配乐版成片、音乐素材、片段清单和制作记录（用户要求分镜时一并交付分镜参考图），报告本集 `直接复用 / 适配复用 / 新生成` 的 cue 数量，并询问修改方向。修改影响剧本、美术、分镜或配乐进入点时，退回相应阶段重新确认。`TOKENHUB_API_KEY` 未配置或 TokenHub 不可达时按上表降级：跳过待生成 cue，交付自带 H3 音轨的母版并明确说明未生成清单与配置方法；复用已覆盖全部 cue 时正常交付。任何时候不因音乐失败伪装完成配乐版。
 
 ## 配套技能的加载规则
 
@@ -189,8 +188,8 @@ MiniMax H3 生成的片段自带对白与音效，TTS 配音是可选增强：�
 |---|---|---|
 | 分集概要与单集写作 | `short-drama-screenplay-writing` | 概要可写性检查、单集契约、场景设计、剧本与对白、时间轴投影、时长返修和生产变更分级 |
 | 美术 | `character-three-view` | 资产清单、三视图/场景规范、关键角色表情与表演参考、命名、验收 |
-| 美术与分镜 | `cursor-image-gen` | 位图生成、参考图编辑、批量导出 |
-| 视频导演 | `h3-short-drama-director` | 整集导演方案、导演镜头卡、POV/权力/潜台词、连续性与参考台账、校准片、创意样片验收 |
+| 美术与分镜图 | `cursor-image-gen` | 位图生成、参考图编辑、批量导出 |
+| 视频导演 | `h3-short-drama-director` | 全集视觉风格块、戏剧动作切段、导演镜头卡（动作/表演链、动机化运镜、精确人数、防复制）、连续性与参考台账、校准片、创意样片验收 |
 | 视频提示词 | `h3-prompt-writing` | H3 提示词结构、参考标签、角色唯一性英文约束、情绪起止与可执行表演变化 |
 | 视频生成 | `minimax-h3` | 工作流发现、素材上传、提交、轮询、下载、视频检查 |
 | AutoDL 视频批次 | `autodl-app-instance` | 实例开机、等待 ready、批次结束关机 |
