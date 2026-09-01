@@ -1,370 +1,121 @@
 ---
 name: minimax-music-gen
 description: >
-  Use when user wants to generate music, songs, or audio tracks. Triggers on any request
-  involving music creation, song writing, lyrics generation, audio production, or covers.
-  Also triggers when user provides lyrics and wants them turned into a song, or describes
-  a mood/scene and wants background music. Supports multilingual triggers — match equivalent
+  用 AutoDL GPU 实例上的 MiniMax Music 3（ComfyUI）生成音乐：人声演唱的完整歌曲
+  （自定义歌词、女声/男声、任意曲风）或纯音乐 BGM（instrumental）。Use when user wants
+  to generate music, songs, or audio tracks — 生成音乐、写歌、把歌词变成歌曲、生成背景音乐/
+  配乐/纯音乐、来首歌、MiniMax Music、BGM、伴奏、情歌 all trigger; match equivalent
   phrases in any language. Do NOT use for music playback of existing files, music theory
-  questions, or music recommendation without generation.
+  questions, or recommendations without generation.
 license: MIT
 metadata:
-  version: "2.0"
+  version: "3.0"
   category: creative
+  backend: autodl-comfyui-minimax-music3
 ---
 
-# MiniMax Music Generation Skill
+# Skill: minimax-music-gen
+# MiniMax Music 3 × AutoDL 实例 音乐生成
 
-Generate vocal songs or instrumental tracks with MiniMax Music v2.6 through Tencent Cloud
-TokenHub. Supports two creation modes: **Basic** (one-sentence-in, song-out) and
-**Advanced Control** (edit lyrics, refine prompt, plan before generating).
+在 AutoDL 应用实例的 ComfyUI 里跑 **MiniMax Music 3**（DiT + 专属 text encoder + DAV VAE），
+一键完成 **开机 → 提交 → 轮询 → scp 下载 → ffprobe 校验 → 关机**。单首曲目全程约 2~4 分钟。
 
-## Prerequisites
+- 开关机/SSH 通道来自 [`autodl-app-instance`](../../autodl-app-instance/SKILL.md) 与
+  minimax-h3 技能的 `connect_server.py`，本技能只管音乐生成。
+- 视频生成走 [`minimax-h3`](../../minimax-h3/SKILL.md)，两者共用同一实例批次时遵循
+  autodl-app-instance 的批次契约：**整批只开一次机、全部完成后只关一次机**。
 
-- **TokenHub API key**: Set `TOKENHUB_API_KEY` in the environment (the legacy name
-  `MINIMAX_API_KEY` still works). Never put the key in a prompt, a skill file, a source
-  file, a filename, or a command-line argument.
+## 前置条件
 
-  Non-interactive Agent shells may not load `~/.zshrc`. Before checking the variable, load
-  the private environment file when it exists:
-  ```bash
-  TOKENHUB_ENV_FILE="${TOKENHUB_ENV_FILE:-$HOME/.config/tokenhub.env}"
-  if [[ -z "${TOKENHUB_API_KEY:-}" && -r "$TOKENHUB_ENV_FILE" ]]; then
-    source "$TOKENHUB_ENV_FILE"
-  fi
-  ```
+| 依赖 | 说明 |
+|---|---|
+| `AUTODL_TOKEN` | autodl.com → 设置 → 开发者 Token。脚本自动读环境变量或 `~/.config/autodl.env`，缺 Token 时向用户转述脚本的申请指引 |
+| 实例 | MINIMAX-H3 应用镜像自带全部音乐模型。已验证可用：`pro-7880531ea6b3`（RTX 5090，2.88 元/小时）。**账号下有多台同名 MINIMAX-H3 实例，必须用 `--uuid` 或 `AUTODL_INSTANCE_UUID` 显式指定**；都不给时脚本会列出候选让你选 |
+| 本机工具 | `expect`（macOS 自带，scp/SSH 密码通道必需）、可选 `ffprobe`（时长校验）、可选 `afplay`/`mpv`（播放） |
 
-  **Verify without printing the key:**
-  ```bash
-  test -n "${TOKENHUB_API_KEY:-}${MINIMAX_API_KEY:-}" && echo "TokenHub API key is set" || echo "TokenHub API key is missing"
-  ```
+实例上的模型（缺失说明镜像不对，不要现下载大文件，直接换实例）：
+`diffusion_models/minimax_music3/`（DiT 三精度）、`text_encoders/minimax_music3_text_encoder_bf16.safetensors`、
+`vae/minimax_music3_dav.safetensors`。
 
-- **Python 3**: The bundled `scripts/tokenhub_music_generate.py` uses only the standard
-  library, downloads the returned URL immediately, and writes the audio file locally. If a
-  non-interactive shell did not inherit the variable, it also reads the private
-  `~/.config/tokenhub.env` fallback file (legacy `~/.config/minimax-music.env` still
-  works) without printing the key.
+## 生成一条音乐（核心命令）
 
-- **Audio player** (recommended): `mpv`, `ffplay`, or `afplay` (macOS built-in) for local
-  playback. `mpv` is preferred for its interactive controls.
-
-## TokenHub API
-
-The current integration uses the Tencent Cloud TokenHub endpoint from the user's API
-documentation. Override it with the `TOKENHUB_ENDPOINT` environment variable when
-TokenHub publishes a new path:
-
-```text
-POST https://tokenhub.tencentmaas.com/v1/wand/minimax-music/generation
-model: minimax-music-v2.6
-```
-
-The request is synchronous. Use `output_format=url` and download the result immediately;
-the returned URL is valid for 12 hours. The API documentation does not expose a hard
-duration parameter, so words such as “short” or “20-second” in the prompt are soft guidance;
-the actual duration is model-controlled.
-
-Supported modes:
-
-- Vocal with supplied lyrics: `lyrics`
-- Vocal with generated lyrics: `lyrics_optimizer: true`
-- Instrumental: `is_instrumental: true` and a non-empty `prompt`
-
-The old `mmx` workflow and MiniMax free models are not used by this skill. Do not call
-`mmx auth login`, `music-2.6-free`, or `music-cover-free` for this integration.
-
-## Storage
-
-All generated music is saved to `MINIMAX_MUSIC_OUTPUT_DIR` when set, otherwise
-`~/Music/minimax-gen/`. Create the directory if it doesn't exist. Files are named with a
-timestamp and a short slug derived from the prompt:
-`YYYYMMDD_HHMMSS_<slug>.mp3`
-
-When the normal home Music directory is not writable in the current environment, use an
-explicit writable workspace path for `--out` and report that absolute path to the user.
-
----
-
-## Language & Interaction
-
-Detect the user's language from their first message and respond in that language for the
-entire session. This applies to all interaction text, questions, confirmations, and feedback
-prompts.
-
-**User-facing text localization rule**:
-- ALL text shown to the user — including preview labels, field names, confirmations, status
-  messages, playback info, feedback prompts, **and the prompt/description preview** — MUST
-  be fully translated into the user's language.
-- The **API prompt** sent to the model should always be written in English for best
-  generation quality. However, when previewing the prompt to the user, show a localized
-  description in the user's language instead of the raw English prompt. The English prompt
-  is an internal implementation detail — the user does not need to see it.
-- The templates below are written in English as reference. At runtime, translate every label
-  and message into the user's detected language.
-
-**Lyrics language rule**:
-- Default lyrics language = the user's language. A Chinese-speaking user gets Chinese lyrics;
-  an English-speaking user gets English lyrics.
-- Only generate lyrics in a different language if the user **explicitly** requests it.
-- When a different lyrics language is needed, embed it naturally into the vocal or genre
-  description in the prompt. For example, instead of appending "with Korean lyrics", use
-  "featuring a Korean female vocalist" or specify a genre that implies the language (e.g.,
-  "K-pop", "J-rock", "Mandopop", "Latin pop").
-
----
-
-## Workflow
-
-### Step 0: Detect Intent
-
-Parse the user's message to determine:
-
-1. **Song category**: vocal (with lyrics), instrumental (no vocals), or cover
-2. **Creation mode preference**: did they provide detailed requirements (Advanced) or a
-   casual one-liner (Basic)?
-
-If ambiguous, ask using this decision tree:
-
-```
-Q1: What type of music?
-  - Vocal (with lyrics)
-  - Instrumental (no vocals)
-  - Cover
-
-Q2: Creation mode?
-  - Basic — one-line description, auto-generate
-  - Advanced — edit lyrics, refine prompt, plan
-```
-
-If the user gives a clear one-liner like "make me a sad piano piece", skip the questions —
-infer instrumental + basic mode and proceed.
-
----
-
-### Step 1: Basic Mode
-
-**Goal**: User provides a short description, the skill auto-generates everything, then calls
-the API.
-
-1. **Expand the description into a prompt**: Take the user's one-liner and expand it into a
-   rich music prompt. Refer to the **Prompt Writing Guide** appendix at the end of this
-   document for style vocabulary, genre/instrument references, and prompt structure.
-   **The API prompt should always be written in English** for best generation quality,
-   regardless of the user's language.
-   
-   Follow this pattern:
-   ```
-   A [mood] [BPM optional] [genre] song, featuring [vocal description],
-   about [narrative/theme], [atmosphere], [key instruments and production].
-   ```
-
-2. **Show the user a preview** before generating. Translate all labels AND the prompt
-   description into the user's language. The English prompt is only used internally when
-   calling the API — the user should never see it. Example template (English reference —
-   localize everything at runtime):
-
-   ```
-   About to generate:
-   Type: Vocal / Instrumental
-   Description: indie folk, melancholy, acoustic guitar, gentle female voice
-   Lyrics: Auto-generated (--lyrics-optimizer)
-   
-   Confirm? (press enter to confirm, or tell me what to change)
-   ```
-
-3. **Call the TokenHub helper**: Generate the music directly and download the returned
-   audio URL before it expires.
-
----
-
-### Step 2: Advanced Control Mode
-
-**Goal**: User has full control over every parameter before generation.
-
-1. **Lyrics phase**:
-   - If user provided lyrics: display them formatted with section markers, ask for edits.
-     The final lyrics will be passed via `--lyrics` to the TokenHub helper.
-   - If user has a theme but no lyrics: use `--lyrics-optimizer` to auto-generate.
-   - Support iterative editing: "change the second chorus" -> only rewrite that section.
-   - User can also write lyrics themselves and pass via `--lyrics`.
-
-2. **Prompt phase**:
-   - Generate a recommended prompt based on the lyrics' mood and content.
-   - Present it as editable tags the user can add/remove/modify.
-   - Refer to the **Prompt Writing Guide** appendix for the full vocabulary.
-
-3. **Advanced planning** (optional, offer but don't force):
-   - Song structure: verse-chorus-verse-chorus-bridge-chorus or custom
-   - BPM suggestion (encode in prompt as tempo descriptor)
-   - Reference style: "something like X style" -> map to prompt tags
-   - Vocal character description
-
-4. **Final confirmation**: Show complete parameter summary, then generate.
-
----
-
-### Step 3: Call TokenHub
-
-Use the bundled helper script. Set `SKILL_DIR` to the directory containing this `SKILL.md`.
-The helper reads `TOKENHUB_API_KEY` (legacy `MINIMAX_API_KEY` still works) and never accepts
-an API key as a CLI argument.
-
-**Vocal with auto-generated lyrics:**
 ```bash
-python3 "$SKILL_DIR/scripts/tokenhub_music_generate.py" \
-  --prompt "<prompt>" \
-  --lyrics-optimizer \
-  --out "${MINIMAX_MUSIC_OUTPUT_DIR:-$HOME/Music/minimax-gen}/<filename>.mp3"
+python3 "$ZCODE_HOME/.zcode/skills/minimax-music-gen/scripts/generate_music.py" \
+  --uuid pro-7880531ea6b3 \
+  --caption "<英文三段式曲风描述，见 references/prompt_guide.md>" \
+  --lyrics "<中文歌词，含 [verse]/[chorus]/[bridge]/[outro] 标记>" \
+  --duration 180 \
+  --slug "女声情歌" \
+  --out "/绝对路径/成品.mp3"          # 可省，默认 ~/Music/minimax-gen/时间戳_slug.mp3
 ```
 
-**Vocal with user-provided lyrics:**
-```bash
-python3 "$SKILL_DIR/scripts/tokenhub_music_generate.py" \
-  --prompt "<prompt>" \
-  --lyrics "<lyrics with section markers>" \
-  --out "${MINIMAX_MUSIC_OUTPUT_DIR:-$HOME/Music/minimax-gen}/<filename>.mp3"
-```
+- **人声歌**：给 `--lyrics`（可中文）。**纯音乐**：不给 `--lyrics`（caption 里写明 "No vocals"）。
+- `--duration` 是 max_duration **上限**，模型可能提前收尾——时长控制经验见下节。
+- 脚本自动处理：无库存开机重试（每 30s 一次，默认 6 次）、提交、每 10s 轮询、scp 回传、
+  ffprobe 校验、**成功后立即关机**（`--keep-on` 跳过关机，用于同批次连做多首；
+  环境变量 `AUTODL_KEEP_ON=1` 等效）。
+- 输出关键行：`SAVED: <路径> <字节>`、`DURATION: <秒>`、`终态 success，耗时 <秒>s`——
+  这些就是要转述给用户的交付信息。
 
-**Instrumental (no vocal):**
-```bash
-python3 "$SKILL_DIR/scripts/tokenhub_music_generate.py" \
-  --prompt "<prompt>" \
-  --instrumental \
-  --format mp3 \
-  --sample-rate 44100 --bitrate 256000 \
-  --out "${MINIMAX_MUSIC_OUTPUT_DIR:-$HOME/Music/minimax-gen}/<filename>.mp3"
-```
+## 交互流程
 
-The TokenHub music endpoint accepts the main creative controls through `prompt`; encode
-genre, mood, tempo, scene, instruments, and production details in a vivid English sentence
-instead of sending unsupported `mmx` structured flags.
+1. **判断类型**：人声歌（有/无歌词都行）还是纯音乐；casual 一句话就直接按 Basic 生成，
+   不必追问。
+2. **预览再生成**（除非用户催促直接出）：用用户语言展示——类型、曲风描述（本地化转述，
+   英文 caption 是内部实现不用贴原文）、歌词全文、目标时长。用户确认或改完再跑。
+3. **歌词创作**（用户没给歌词时）：默认用用户的语言写原创歌词。段落标记
+   `[intro] [verse] [chorus] [bridge] [outro]`；主歌每段 4 行、每行 7~12 字、
+   押韵（中文常用 an/ang/iu 等宽韵）；副歌重复但有变化。更多模板与完整示例 →
+   [references/prompt_guide.md](references/prompt_guide.md)。
+4. **生成**：跑上面的命令。长歌词用 `--lyrics-file`，长 caption 用 `--caption-file`。
+5. **播放 + 交付**：`afplay <路径>`（macOS）后台播放，报告绝对路径和实测时长。
+6. **反馈迭代**：满意即收工；不满意按用户意见改歌词/改 caption/换 seed 重跑，旧文件加
+   `_v1` 后缀保留对比。每首都是独立生成，旧版不会自动覆盖。
 
-Display a progress indicator while waiting. The request can take 30-120 seconds. Never print
-the authorization header or the signed audio URL.
+## 时长控制与耗时（RTX 5090 实测，2026-08-31）
 
----
+`max_duration` 是**上限不是保证**：模型按内容密度自己决定实际长度，实测给 30s 上限 +
+稀疏编排只出了 15s。控制手段是把 caption 的 `### Arrangement` 按**小节规划写满**
+（明确 Bar 1-2 / Bar 3-5 … 的段落与内容，并写 "finishing cleanly at exactly N seconds.
+Do not end before N seconds"）——实测同一 30s 目标从 15s 提到 27.6s。
 
-### Step 4: Playback
+| 目标时长 | 实测成品 | 合成耗时（提交→完成） |
+|---|---|---|
+| 30s 纯音乐 | 15.1s / 27.6s | 65.8s / 77.1s |
+| 3min 女声情歌（上限 210s） | 2 分 03 秒 | 约 150s |
 
-After generation, detect an available audio player and play the file.
+粗略估算：**合成时间 ≈ 成品时长 × 1.2 + 首任务 30~60s 模型加载**；开机到可提交 <1 分钟
+（遇到"当前算力规格暂无库存"由脚本自动重试）。每首成本约 0.3~0.5 元 GPU 费。
 
-**Detect player:**
-```bash
-command -v mpv || command -v ffplay || command -v afplay
-```
+## 硬规则（踩过的坑）
 
-**Play based on detected player (in priority order):**
+1. **保存节点必须用 `SaveAudioMP3`**。不要用工作流 UI 里的 `SaveAudioAdvanced`——它的
+   `COMFY_DYNAMICCOMBO_V3` 格式参数经 `/prompt` API 提交会丢 `format`，报
+   `TypeError: missing 1 required positional argument: 'format'`（采样结果会白算）。
+2. **成品用 scp 拉回**（脚本已内置）。不要用 `base64 | cat` 走 expect SSH 通道——
+   大文件会被 expect 缓冲截断导致 base64 解码失败。远端路径含 `audio/` 子目录
+   （`/root/ComfyUI/output/audio/<file>`），路径写错会得到 0 字节文件。
+3. **批次结束必须关机**（GPU 按秒计费）。多首连做：中间曲目 `--keep-on`，最后一首不加；
+   任何失败路径也要走 try/finally 关机，除非用户明确要求保持开机。
+4. **不要打印** `AUTODL_TOKEN` / SSH 密码；**不要调** `release` 接口（那是释放实例）。
+5. ComfyUI 在实例内 `127.0.0.1:6006`；外网 8443 面板域名不透传 API。提交/轮询都走 SSH
+   内网 curl。
+6. 采样节点有 ComfyUI 缓存：只改保存节点重提，秒级出结果，不会重算采样。
 
-| Player | Command | Controls |
-|--------|---------|----------|
-| `mpv` (preferred) | `mpv --no-video <absolute-output-path>.mp3` | space = pause/resume, q = quit, left/right = seek |
-| `ffplay` | `ffplay -nodisp -autoexit <absolute-output-path>.mp3` | q = quit |
-| `afplay` (macOS) | `afplay <absolute-output-path>.mp3` | Ctrl+C = stop |
-| None found | Do not attempt playback | Show file path only |
+## 故障排查
 
-After starting playback, tell the user (localize all text):
+| 现象 | 处理 |
+|---|---|
+| `当前算力规格暂无库存` | 脚本已自动每 30s 重试；连续失败告知用户稍后再跑 |
+| 提交被拒（无 prompt_id） | 看返回 JSON：节点参数名不符或模型文件缺失；对照脚本里 build_prompt 的参数 |
+| `execution_error` | 读 history 里的 node_type 与 exception_message 定位节点 |
+| 成品 0 字节 / scp 失败 | 远端路径少了 `audio/` 子目录，或实例 SSH 端口已变（重取 snapshot） |
+| 时长远短于预期 | Arrangement 按小节写满 + 显式 "exactly N seconds"，重生成 |
+| 想要的音色/曲风不像 | caption 的 Vocal Details 写具体（性别、音区、气声、副歌处理），换 seed 再试 |
 
-```
-Now playing: <filename>.mp3
-Saved to: <absolute-output-path>.mp3
-```
+## 视频流水线内的跳过策略
 
-Do NOT show playback controls (e.g. keyboard shortcuts) — they don't work in this
-environment since the player runs in the background.
-
-If no player is found (localize all text):
-
-```
-No audio player detected.
-File saved to: <absolute-output-path>.mp3
-Tip: Install mpv for the best playback experience (brew install mpv).
-```
-
----
-
-### Step 5: Feedback & Iteration
-
-After playback, ask for feedback:
-
-```
-How was this song?
-  1. Love it, keep it!
-  2. Not quite, adjust and regenerate
-  3. Fine-tune lyrics/style then regenerate
-  4. Don't want it, start over
-```
-
-Based on feedback:
-- **Satisfied**: Done. Mention the file path again.
-- **Adjust & regenerate**: Ask what to change (prompt? lyrics? style?), apply edits,
-  re-run generation. Keep the old file with a `_v1` suffix for comparison.
-- **Fine-tune**: Enter Advanced Control Mode with the current parameters pre-filled.
-- **Delete & restart**: Remove the file, go back to Step 0.
-
----
-
-## Cover Mode
-
-Cover generation is not part of the current Tencent Cloud TokenHub MiniMax Music v2.6
-documented endpoint. Do not call the old `mmx music cover` / `music-cover-free` workflow.
-If the user requests a cover, explain that this integration currently supports new vocal
-songs and instrumentals only, then ask whether to use another provider.
-
----
-
-## Error Handling
-
-| Error | Action |
-|-------|--------|
-| `TOKENHUB_API_KEY` missing (exit code 2) | Ask the user to configure the environment variable or `~/.config/tokenhub.env`; never ask them to put it in the prompt. Inside a video pipeline, apply the skip policy below |
-| HTTP 401/403 | Check TokenHub activation, API key validity, and account permissions |
-| HTTP 402 / code `401007` | In Tencent Cloud Console → TokenHub → Online Inference Service, enable postpaid billing; a Token Plan balance alone may not activate this route. Do not loop retries |
-| HTTP 402 / code `401009` | The specific API Key quota is exhausted. Check TokenHub API Key Management and Token Plan/API Key usage or limits; account balance alone does not prove this Key has remaining quota. Do not loop retries |
-| HTTP 429 | Retry once after a short backoff, then report rate limiting |
-| HTTP 5xx or timeout | Retry once, then report the status and request ID if available |
-| Content filter | Adjust the prompt to remove disallowed content |
-| Invalid lyrics format | Auto-fix section markers, warn user |
-| No audio player found | Save file and tell user the path, suggest installing mpv |
-| Network error | Show error detail, suggest checking connection |
-
-### Skip policy inside the video pipeline
-
-Music generation is an **optional enhancement**: MiniMax H3 generated videos carry their
-own audio track. When this skill runs inside a production pipeline (for example
-`short-drama-production`) and the API key is missing, or TokenHub stays unreachable /
-quota-exhausted after the retries allowed above:
-
-1. Do **not** block video delivery and do **not** fake a scored master.
-2. Skip every `待生成` cue; still mix any reused cues that already exist locally.
-3. Tell the user exactly: which cues were not generated, the reason (`TOKENHUB_API_KEY`
-   not configured / TokenHub unreachable / quota exhausted — cite the table row above for
-   the fix), and that the delivered video keeps its native H3 audio track.
-4. Deliver the unscored master and mark the music stage as pending, so a later session
-   with the key configured can fill the gap and produce the scored cut.
-
----
-
-## Important Notes
-
-- **Never reproduce copyrighted lyrics.** When doing covers, always write original lyrics
-  inspired by the song's theme. Explain this to the user.
-- **Prompt language**: The API prompt works best with English tags. Chinese tags are also
-  acceptable. Mixing is OK.
-- **Section markers in lyrics**: The API recognizes `[verse]`, `[chorus]`, `[bridge]`,
-  `[outro]`, `[intro]`. Always include them when providing `--lyrics`.
-- **File management**: If the configured output directory has more than 50 files, suggest cleanup
-  when starting a new session.
-- **Duration**: There is no documented duration argument. Use a concise prompt for a short
-  test, but report the actual duration returned in `extra_info.music_duration`.
-- **Lyrics language via style**: When the user wants lyrics in a specific language, express
-  it through the vocal description or genre (e.g., "Japanese female vocalist", "Mandopop
-  ballad") rather than appending a language directive to the prompt.
-- **Commercial use**: Keep `aigc_watermark` off only when appropriate for the user's use case;
-  confirm the current Tencent Cloud terms before commercial release.
-
----
-
-## Appendix: Prompt Writing Guide
-
-See [references/prompt_guide.md](references/prompt_guide.md) for the complete prompt writing guide,
-including genre/vocal/instrument references and BPM tables.
+本技能在视频生产流水线（如 short-drama-production）中是**可选增强**：H3 视频自带音轨。
+实例不可用（无 Token / 抢不到库存 / 生成失败）时不要阻塞交付，明确告知用户哪几段音乐
+未生成、原因是什么，后续补配即可。旧的 TokenHub/腾讯云 API 路径（含其 402/429 错误码表）
+已于 2026-08-31 全部移除，不要再用。
