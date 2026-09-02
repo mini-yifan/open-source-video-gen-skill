@@ -51,10 +51,11 @@ flowchart TD
 
 | 你想做的 | 怎么用 | 需要的技能 |
 |---|---|---|
-| 竖屏短剧（多集续作） | 全流程编排，四个确认关卡 | 全部 10 个 |
+| 竖屏短剧（多集续作） | 全流程编排，四个确认关卡 | 剧组 10 个职位全部 |
 | 产品 / 品牌宣传片 | 出镜头方案 → 风格帧 → 生成 → 配乐 | 导演 + 生图 + 提示词 + 生成 + 音乐 |
 | 软件演示 / 功能介绍 | 画面描述 → 提示词 → 生成 | 提示词 + 生成 |
 | 创意短片 / 氛围视频 / 视觉梗 | 一句话画面感 → 直接生成 | 提示词 + 生成（+ 自动开关机） |
+| 真人时尚美女竖屏单片 | 定脸（可选）→ 提示词 → 云端生成 → 提亮滤镜 | `beauty-video-gen`（+ 自动开关机） |
 
 试试这些开场白：
 
@@ -64,22 +65,25 @@ flowchart TD
 
 > 给我的笔记 App 做一支 30 秒宣传片：先用 h3-short-drama-director 出整支片子的镜头方案和导演说明，我确认后再生成。
 
-## 10 个技能 = 一个 AI 剧组
+> 用 beauty-video-gen 生成一条 10 秒竖屏美女时尚视频，可爱亲切风格，先出一张面部参考图定脸。
+
+## 11 个技能 = 一个 AI 剧组
 
 | 技能 | 剧组职位 | 干什么 |
 |---|---|---|
 | `short-drama-production` | 执行制片 | 流程状态机、确认关卡、目录规范、断点续作 |
 | `short-drama-screenplay-writing` | 编剧 | 场景设计、可演剧本、人物化对白、台词时间轴 |
 | `character-three-view` | 美术指导 | 人物 / 道具 / 场景设定规范与逐图验收 |
-| `cursor-image-gen` | 美术执行 | 调用本地 Cursor Agent 生成与编辑图片 |
+| `cursor-image-gen` | 美术执行（备选） | Agent 自带生图不可用或点名 Cursor 时，调用本地 Cursor Agent 生成与编辑图片 |
 | `h3-short-drama-director` | 导演 | 整集导演方案、镜头卡、连续性台账、样片裁决 |
 | `h3-prompt-writing` | 提示词师 | 把导演镜头卡翻译成 H3 原生提示词 |
 | `minimax-h3` | 摄影棚 | ComfyUI 工作流发现、上传、提交、轮询、下载 |
 | `autodl-app-instance` | 场务 | GPU 服务器自动开机、等就绪、用完即关 |
 | `minimax-music-gen` | 配乐师 | 仅为复用覆盖不了的部分生成无主唱音乐 |
 | `qwen3-tts` | 配音师 | Qwen3-TTS 配音：描述声线 / 内置音色 / 声音克隆，旁白与对白替换 |
+| `beauty-video-gen` | 时尚单片承包（剧组外） | 超写实真人美女时尚竖屏短视频：提示词框架、可选定脸、云端出片、提亮滤镜与抽帧验收 |
 
-短剧全流程会把 10 个职位全部用上；做单条视频时按需点将。每个技能都可以独立调用。
+短剧全流程会把 10 个剧组职位全部用上；`beauty-video-gen` 是剧组之外的独立时尚单片技能，单独点用即可。做单条视频时按需点将，每个技能都可以独立调用。
 
 ## 安装
 
@@ -101,7 +105,7 @@ cp -r skills/* ~/.zcode/skills/
 | 级别 | 依赖 | 不配会怎样 |
 |---|---|---|
 | 硬必需 | AutoDL 账号 + MINIMAX-H3 实例 + 开发者 Token | 无法生成视频，AI 停下并给配置指引 |
-| 默认可换 | 生图（默认 Cursor Agent；可换 Codex 自带生图等） | AI 引导登录或切换替代工具 |
+| 默认可换 | 生图（优先 Agent 自带生图能力；备选 Cursor Agent，可按点名换其它） | AI 引导登录或切换替代工具 |
 | 可选增强 | TokenHub 音乐 API（`TOKENHUB_API_KEY`）、Qwen3-TTS 配音（同一 Token，实例需预装 TTS 节点） | 各自跳过；H3 生成的视频自带音轨与对白 |
 
 另需 Agent 运行时（ZCode 或任何支持 Skills 约定的 CLI Agent）和本地工具 `ffmpeg` / `ffprobe` / `python3` / `node`。
@@ -139,7 +143,7 @@ bash scripts/doctor.sh --probe  # 额外真实探活
 
 ## 常见问题
 
-- **只做一条 10 秒视频，也要装 10 个技能吗？** 不用。`minimax-h3` + `h3-prompt-writing` 就是最小可用组合；加上 `autodl-app-instance` 实现自动开关机；只有长片才需要编排器。
+- **只做一条 10 秒视频，也要装全部 11 个技能吗？** 不用。`minimax-h3` + `h3-prompt-writing` 就是最小可用组合；加上 `autodl-app-instance` 实现自动开关机；只有长片才需要编排器。
 - **价格数字哪来的？** 按 AutoDL 常见实例规格实测的量级，随市价浮动；你看到账单的第一反应大概率是「就这么多？」
 - **H3 提示词语法会过时吗？** 会。`h3-prompt-writing` 跟随 [MiniMax 官方仓库](https://github.com/MiniMax-AI/MiniMax-H3)，更新前先对照官方。
 - **没有 Cursor / AutoDL 怎么办？** 对应阶段会明确提示缺什么并停下，不伪装、不擅自换收费服务。

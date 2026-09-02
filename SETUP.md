@@ -5,10 +5,10 @@
 | 级别 | 依赖 | 不配会怎样 |
 |---|---|---|
 | 🔴 硬必需 | [AutoDL 账号 + 实例 + Token](#1-硬必需autodl-账号实例与-token) | 无法生成视频，AI 会停下并告诉你怎么配 |
-| 🟡 默认可换 | [生图能力](#2-默认可换生图默认-cursor可换-codex-等)（默认 Cursor） | AI 会引导你登录 Cursor，或改用其他生图工具（如 Codex 自带生图） |
+| 🟡 默认可换 | [生图能力](#2-默认可换生图优先-agent-自带备选-cursor)（优先 Agent 自带生图） | 有自带生图就零配置；没有时 AI 会引导你登录 Cursor，或改用其他生图工具 |
 | 🟢 可选增强 | [TokenHub 音乐 API](#3-可选增强tokenhub-音乐生成) 与 [Qwen3-TTS 配音](#另一个可选增强qwen3-tts-配音) | 各自跳过；**H3 生成的视频自带音轨与对白，成片照样有声** |
 
-配置完任何一步，都可以跑 [一键自检](#4-一键自检) 验证。
+配置完任何一步，都可以跑 [一键自检](#5-一键自检) 验证。
 
 ---
 
@@ -46,19 +46,23 @@ python3 skills/autodl-app-instance/scripts/autodl_app.py list
 
 ---
 
-## 2. 默认可换：生图（默认 Cursor，可换 Codex 等）
+## 2. 默认可换：生图（优先 Agent 自带，备选 Cursor）
 
-美术设定（人物三视图、场景、分镜参考图）默认由 `cursor-image-gen` 技能调用本地 Cursor Agent 生成。
+美术设定（人物三视图、场景、分镜参考图）与面部参考图等位图，优先用你当前 Agent 自带的生图工具或技能（如 Codex 的 ImageGen）生成，不要求安装 Cursor。
 
-### 默认方案：Cursor Agent
+### 首选方案：Agent 自带生图
+
+Agent 环境自带生图能力（如 Codex 的内置 ImageGen）就零配置直接用，AI 会自动选择。
+
+### 备选方案：Cursor Agent
+
+环境没有自带生图能力，或你明确点名要用 Cursor 生成时，由 `cursor-image-gen` 技能调用本地 Cursor Agent：
 
 1. 安装 Cursor 并订阅，CLI 里有 `cursor-agent` 命令。
 2. 登录一次：`cursor-agent login`（或设置 `CURSOR_API_KEY` 环境变量做无头认证）。
 3. 验证：`node skills/cursor-image-gen/scripts/generate_with_cursor.mjs --doctor`，`logged_in: true` 即可。
 
-### 替代方案
-
-如果你的 Agent 环境自带生图能力——比如 **Codex 的内置生图工具**——可以直接替代：告诉 AI「生图用 Codex 自带生图，不用 Cursor」。替代工具只需遵守两条约定：
+无论用哪个执行器，都只需遵守两条约定：
 
 - 图片保存到项目的 `第N集/美术设定集/` 对应子目录（或 `视频制作/分镜参考图/`）；
 - 遵守 `character-three-view` 规定的版式与命名，生成后逐图验收。
@@ -97,7 +101,19 @@ chmod 600 ~/.config/tokenhub.env
 
 ---
 
-## 4. 一键自检
+## 4. 可选独立技能：beauty-video-gen（真人时尚单片）
+
+`beauty-video-gen` 是短剧剧组之外的独立技能：生成超写实、真实感的真人美女时尚竖屏短视频（提示词框架 → 可选面部参考图定脸 → H3 云端生成 → 提亮滤镜 → 抽帧验收）。
+
+- 复用第 1 节的 AutoDL 实例与 Token，无需新凭证。
+- 面部参考图的生图遵循第 2 节的优先级：Agent 自带生图优先，备选 Cursor。
+- 本地额外依赖：`numpy` 与 `opencv-python`（`pip3 install numpy opencv-python`，供技能自带的美肤提亮滤镜脚本使用）；`ffmpeg` / `ffprobe` 见第 5 节清单。
+
+不装也不影响短剧全流程；需要时尚单片时直接对 AI 说「用 beauty-video-gen 生成……」即可。
+
+---
+
+## 5. 一键自检
 
 ```bash
 bash scripts/doctor.sh          # 检查凭证与本地工具
