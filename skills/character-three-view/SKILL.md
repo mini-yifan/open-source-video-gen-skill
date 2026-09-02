@@ -4,7 +4,9 @@ description: >-
   Prepares a short-drama art bible from a script: character turnarounds, prop
   turnarounds, and vertical scene concepts, then verifies each image. Use when
   the user asks for 美术设定集, 人物三视图, 道具三视图, 场景概念图, 角色立绘,
-  or visual refs before video. Prefer Cursor GenerateImage; fall back to
+  or visual refs before video. Prefer the running agent's own image generation
+  tool (e.g. Codex ImageGen); use cursor-image-gen only when no native image
+  generation exists or the user explicitly requests Cursor; fall back to
   Seedream (seedream-image-gen) if blocked, filtered, or quality is insufficient.
 ---
 
@@ -14,11 +16,11 @@ description: >-
 
 ## 生图工具
 
-不绑定唯一 API。默认顺序：
+不绑定唯一 API。用户点名生图工具时以点名为准（点名 Cursor 即用 `cursor-image-gen`）；未点名时按默认顺序：
 
-1. **Cursor `GenerateImage`**：三视图条 `16:9`，竖屏场景 `9:16`；有样例或已有图用 `reference_image_paths`。
-2. **Seedream（备选）**：内置被拦截、拒生、重试后仍不合格，或需要精确像素 / 多张本地参考图时，读 `~/.cursor/skills/seedream-image-gen/SKILL.md` 再生成。三视图条可用 `--size 2048x1024`，竖屏场景 `--size 1080x1920`。
-3. 用户点名的其它工具。
+1. **当前 Agent 自带的生图能力（首选）**：环境自带生图工具或技能（如 Codex 的 ImageGen）就直接用，不要求安装 Cursor。三视图条 `16:9`，竖屏场景 `9:16`；有样例或已有图就把图作为参考图传给生图工具。
+2. **`cursor-image-gen`（备选）**：环境没有自带生图能力时，读 [`cursor-image-gen`](../cursor-image-gen/SKILL.md) 生成。三视图条 `16:9`，竖屏场景 `9:16`；有样例或已有图用 `reference_image_paths`。
+3. **Seedream（兜底）**：默认执行器被拦截、拒生、重试后仍不合格，或需要精确像素 / 多张本地参考图时，读 `~/.cursor/skills/seedream-image-gen/SKILL.md` 再生成。三视图条可用 `--size 2048x1024`，竖屏场景 `--size 1080x1920`。
 
 生成后把文件放到设定集目录并按规范命名（工具写到别处则复制/移动过去）。
 
