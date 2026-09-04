@@ -142,6 +142,10 @@ python3 ~/.zcode/skills/autodl-app-instance/scripts/autodl_app.py off --uuid <UU
 
 分辨率、画幅、帧率、是否插帧、LoRA、采样步数和加速组件，根据用户目标、当前机器能力和工作流实际节点选择。不要默认强制使用某个画幅、某个分辨率、speed 档、Turbo LoRA、RIFE 或固定切镜方式。
 
+**用户长期默认（2026-09-04 三轮实拍对比后确认，用户明示"以后人物就按这样生成"）**：含人物的镜头一律用 **speed 档（Turbo 4 步 LoRA）+ 1920×1088 原生分辨率**（10s 约 7.3 分钟/5090）。配合 `h3-prompt-writing` 的皮肤锁/高光锁句式即可实现不油腻写实质感；turbo 本身不是油腻来源。用户点名要更高细节时才升级为 12 步无 LoRA 720p + 服务器 OmniSR X2 超分（约 8.8 分钟，超分脚本见项目《去油腻实验/新参考图测试/服务器超分_omnisr.sh》）；草稿预览可用 1280×720 + turbo（约 4 分钟）。
+
+**工作流避坑**：不要用 `U03-minimax_h3_基础版` 类 res_multistep 采样器的工作流跑高步数——实测 24 步在 int8 量化模型上满画面 speckle 噪点。U03 选 light2v（euler），U06 选 euler 采样器的版本（如 `U06-9图版API-V5`）。另：同实例同工作流的 slot map 可复用，但每次换实例必须重新 discover；U03 基础版工作流的秒数节点（PrimitiveFloat）discover 会漏，需手工补 `seconds_key`。
+
 如果使用 Turbo LoRA，采样步数必须与该 LoRA 的适用步数相匹配；这是技术兼容性要求，不是创作上的默认画质选择。具体节点和文件名以当前机器的 workflow JSON 与模型目录为准。
 
 ### 4. 整理 brief 并交给提示词技能

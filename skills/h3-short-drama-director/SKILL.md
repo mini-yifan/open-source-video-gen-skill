@@ -67,13 +67,13 @@ Source precedence when approved sources disagree: dialogue timeline (speaker, wo
 Read [h3-shot-design.md](references/h3-shot-design.md) before segmentation, cards, briefs, calibration, or take review. Then:
 
 1. **Lock sources.** Record paths and approval states; run the conflict check above.
-2. **Episode look block.** Choose style tokens, color grade, lighting and lens language, camera grammar, and sound approach for the whole episode, in concrete H3-executable wording. One look per episode; change only at a deliberate pattern break. `MEMORY`/`FLASHBACK` time-state cues follow the approved script.
+2. **Episode look block.** Choose style tokens, color grade, lighting and lens language, camera grammar, and sound approach for the whole episode, in concrete H3-executable wording. One look per episode; change only at a deliberate pattern break. `MEMORY`/`FLASHBACK` time-state cues follow the approved script. 人物面部默认软光方向（soft diffused daylight / soft overhead with gentle falloff + subtle bounce fill），风格块写明哑光皮肤走向并与 `h3-prompt-writing` 的皮肤锁/高光锁配套；硬单源光只给剪影、环境和大场面，不打无锁的脸。
 3. **Segment.** Cut the approved timeline into 5–15 second segments at completed actions, dialogue breaths, reveals, or spatial resets — never at a fixed interval.
 4. **Director cards.** Write `视频制作/导演/01-导演镜头表.md` (look block on top, one row per segment) and `视频制作/导演/片段/NN-导演卡.md` per the schema in `h3-shot-design.md`.
 5. **Continuity ledger.** Write `视频制作/导演/02-连续性与参考素材台账.md`: cast, positions and axis, wardrobe and props, light, open movement and sound, accepted end states.
 6. **Handoff.** `h3-prompt-writing` writes `视频制作/提示词/NN.txt` directly from each locked card plus the look block, the approved dialogue at `SOURCE_LINES`, and the referenced assets. There is no intermediate brief file; the card carries the technical envelope and every constraint. Do not invent final H3 tags here.
 7. **Calibration.** Write `视频制作/导演/03-校准片方案.md`: the smallest set covering baseline, highest risk, and the pattern break.
-8. **Take review.** Per generated clip, inspect the whole take plus high-risk frames and record the verdict in `视频制作/导演/04-样片与返修记录.md`. Record the observed end state of accepted takes before finalizing the next continuity-dependent card.
+8. **Take review.** Per generated clip, inspect the whole take plus high-risk frames and record the verdict in `视频制作/导演/04-样片与返修记录.md`. 每条样片除戏剧与技术项外必须检查两项质感硬指标：**脸部哑光无油光**（油腻即 REGENERATE，先查提示词皮肤锁与光线写法）、**画面无 speckle 噪点**（出现即查工作流采样器——res_multistep 高步数为已知根因）。Record the observed end state of accepted takes before finalizing the next continuity-dependent card.
 
 ## Completion Criteria
 
