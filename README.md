@@ -102,7 +102,7 @@ cp -r skills/* ~/.zcode/skills/
 |---|---|---|
 | 硬必需 | AutoDL 账号 + MINIMAX-H3 实例 + 开发者 Token | 无法生成视频，AI 停下并给配置指引 |
 | 默认可换 | 生图（优先 Agent 自带生图能力；备选 Cursor Agent，可按点名换其它） | AI 引导登录或切换替代工具 |
-| 可选增强 | TokenHub 音乐 API（`TOKENHUB_API_KEY`）、Qwen3-TTS 配音（同一 Token，实例需预装 TTS 节点） | 各自跳过；H3 生成的视频自带音轨与对白 |
+| 可选增强 | 音乐生成与 Qwen3-TTS 配音（同一台 AutoDL 实例、同一个 Token，无需新凭证；TTS 需实例预装节点） | 各自跳过；H3 生成的视频自带音轨与对白 |
 
 另需 Agent 运行时（ZCode 或任何支持 Skills 约定的 CLI Agent）和本地工具 `ffmpeg` / `ffprobe` / `python3` / `node`。
 

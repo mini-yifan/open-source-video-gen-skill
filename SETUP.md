@@ -6,7 +6,7 @@
 |---|---|---|
 | 🔴 硬必需 | [AutoDL 账号 + 实例 + Token](#1-硬必需autodl-账号实例与-token) | 无法生成视频，AI 会停下并告诉你怎么配 |
 | 🟡 默认可换 | [生图能力](#2-默认可换生图优先-agent-自带备选-cursor)（优先 Agent 自带生图） | 有自带生图就零配置；没有时 AI 会引导你登录 Cursor，或改用其他生图工具 |
-| 🟢 可选增强 | [TokenHub 音乐 API](#3-可选增强tokenhub-音乐生成) 与 [Qwen3-TTS 配音](#另一个可选增强qwen3-tts-配音) | 各自跳过；**H3 生成的视频自带音轨与对白，成片照样有声** |
+| 🟢 可选增强 | [音乐生成](#3-可选增强音乐生成minimax-music-3) 与 [Qwen3-TTS 配音](#另一个可选增强qwen3-tts-配音)（同一实例同一 Token，无需新凭证） | 各自跳过；**H3 生成的视频自带音轨与对白，成片照样有声** |
 
 配置完任何一步，都可以跑 [一键自检](#5-一键自检) 验证。
 
@@ -71,26 +71,15 @@ Agent 环境自带生图能力（如 Codex 的内置 ImageGen）就零配置直�
 
 ---
 
-## 3. 可选增强：TokenHub 音乐生成
+## 3. 可选增强：音乐生成（MiniMax Music 3）
 
-**先说结论：不申请也完全能出片。** MiniMax H3 生成的视频自带音轨（对白、音效和 H3 自己生成的音乐）。TokenHub 音乐 API 的作用是在此之上叠加**独立的背景音乐混音**（跨集复用的配乐 cue、精确卡点、对白闪避）。
+**先说结论：不用任何新配置也能出片。** MiniMax H3 生成的视频自带音轨（对白、音效和 H3 自己生成的音乐）。`minimax-music-gen` 技能的作用是在此之上叠加**独立的背景音乐**（跨集复用的配乐 cue、精确卡点、对白闪避），也能按歌词生成人声演唱的完整歌曲。
 
-不配置时：AI 检测到没有 key 会自动跳过独立配乐，交付自带音轨的母版，并明确告诉你「哪些配乐没生成、原因、怎么配」。
+音乐生成跑在**同一台** AutoDL MINIMAX-H3 实例的 ComfyUI 上（MiniMax Music 3 模型已预装在应用镜像里），**用的就是第 1 节的 `AUTODL_TOKEN`，不需要任何新账号、新 Key**。成本约每首 0.3~0.5 元 GPU 费，单首全程 2~4 分钟。
 
-想配置的话：
+实例不可用（没配 Token / 抢不到库存 / 生成失败）时：AI 自动跳过独立配乐，交付自带音轨的母版，并明确告诉你「哪些配乐没生成、原因、后续怎么补」。
 
-1. 注册腾讯云账号，进入控制台 → **TokenHub**。
-2. 开通在线推理服务并**启用后付费计费**（只买 Token 套餐可能不够，常见报错见下表）。
-3. 创建 API Key 并复制。
-4. 存储：
-
-```bash
-mkdir -p ~/.config
-echo 'export TOKENHUB_API_KEY=你的Key' > ~/.config/tokenhub.env
-chmod 600 ~/.config/tokenhub.env
-```
-
-> 兼容说明：旧版本变量名 `MINIMAX_API_KEY` 和旧文件 `~/.config/minimax-music.env` 仍然有效，择机迁移即可。端点默认 `https://tokenhub.tencentmaas.com/v1/wand/minimax-music/generation`，可用 `TOKENHUB_ENDPOINT` 环境变量覆盖。
+> 兼容说明：旧的 TokenHub/腾讯云音乐 API 路径（`TOKENHUB_API_KEY`、`MINIMAX_API_KEY`）已于 2026-08-31 全部移除，音乐不再需要任何专用凭证；以前配过的 env 文件可以删掉。
 
 ### 另一个可选增强：Qwen3-TTS 配音
 
@@ -117,7 +106,7 @@ chmod 600 ~/.config/tokenhub.env
 
 ```bash
 bash scripts/doctor.sh          # 检查凭证与本地工具
-bash scripts/doctor.sh --probe  # 额外真实探活（调 AutoDL API 列实例、探测 TokenHub 可达性）
+bash scripts/doctor.sh --probe  # 额外真实探活（调 AutoDL API 列实例并探活）
 ```
 
 也可以直接对 AI 说「检查一下环境配置」，它会跑这个脚本并逐项解释缺什么、怎么补。
@@ -133,9 +122,8 @@ bash scripts/doctor.sh --probe  # 额外真实探活（调 AutoDL API 列实例�
 | `缺少 AUTODL_TOKEN` | Token 没配或 Agent shell 没继承 | 按 1.2 写入 `~/.config/autodl.env`；不要加 Bearer |
 | `没有匹配的实例` | 账号下还没有 MINIMAX-H3 实例 | 控制台创建一台（一次性），ID 不用记 |
 | `匹配到多台，请指定 --uuid` | 有多台同名实例 | 把候选表发给 AI 让用户选一次，或设 `AUTODL_INSTANCE_UUID` |
-| `缺少 TOKENHUB_API_KEY`（退出码 2） | 音乐 key 未配置（可选能力） | 不影响出片；想配按 3.4 |
-| TokenHub `HTTP 402 / 401007` | 未开通后付费计费 | 腾讯云控制台 → TokenHub → 在线推理服务，启用后付费 |
-| TokenHub `HTTP 402 / 401009` | 该 API Key 配额耗尽 | TokenHub API Key 管理里查配额；账户余额≠Key 配额 |
+| 音乐报「当前算力规格暂无库存」 | MINIMAX-H3 实例抢不到 GPU（可选能力） | 脚本每 30s 自动重试；连续失败则跳过独立配乐，稍后补生成 |
+| 音乐生成失败 / 实例连不上 | 实例没开机、模型缺失或提交被拒 | AI 跳过该 cue 并交付自带音轨母版，列明未生成清单；按 generate_music.py 的输出定位原因 |
 | TTS 报 `TTS_NODE_MISSING` | 实例未预装 Qwen3TTS 节点（可选能力） | 换预装节点与模型的实例；不在视频实例上临时安装 |
 | `--doctor` 报 `logged_in: false` | Cursor Agent 未登录 | `cursor-agent login` 或设 `CURSOR_API_KEY`；或改用其他生图工具 |
 | 脚本能跑但 Agent 报缺 Token | 非交互 shell 不加载 `~/.zshrc` | 用 `~/.config/autodl.env` 私有文件方案 |

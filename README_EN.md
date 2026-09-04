@@ -102,7 +102,7 @@ Dependencies come in three tiers — whatever is missing, the AI tells you on th
 |---|---|---|
 | Hard-required | AutoDL account + MINIMAX-H3 instance + developer token | video generation blocks with setup guidance |
 | Replaceable default | image generation (prefers the running agent's built-in image tool; Cursor Agent as fallback or on explicit request) | the AI guides login or switches to your alternative tool |
-| Optional enhancement | TokenHub music API (`TOKENHUB_API_KEY`), Qwen3-TTS dubbing (same token; the instance must have the TTS node) | each is skipped independently; H3 videos carry their own audio and dialogue |
+| Optional enhancement | music generation & Qwen3-TTS dubbing (same AutoDL instance, same token, no new credentials; TTS needs the preinstalled node) | each is skipped independently; H3 videos carry their own audio and dialogue |
 
 You also need an agent runtime (ZCode or any CLI agent supporting the Skills convention) and local tools: `ffmpeg` / `ffprobe` / `python3` / `node`.
 
