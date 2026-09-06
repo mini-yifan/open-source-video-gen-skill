@@ -1,6 +1,6 @@
 interface:
   display_name: "短剧全流程制作"
-  short_description: "从主题、Brief、分集剧本、美术设定到最终视频的短剧全流程制作"
-  default_prompt: "Use $short-drama-production to turn my short-drama theme into an approved brief, episode package, art bible, and finished video."
+  short_description: "从主题、Brief、（多集时的）分集概要、剧本台词、美术参考到成片的全流程制作"
+  default_prompt: "Use $short-drama-production to turn my drama or short-film idea into an approved brief, scripts, art references, and a finished video."
 policy:
   allow_implicit_invocation: true

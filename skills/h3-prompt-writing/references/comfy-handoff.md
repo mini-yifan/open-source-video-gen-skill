@@ -1,6 +1,6 @@
 # ComfyUI / minimax-h3 handoff
 
-Use this file only when the caller supplies a **structured handoff** — a locked director card from `h3-short-drama-director`, or a `minimax-h3` brief. Lock `prompt_mode` from it. Write the official structure from `base-en.txt` or `ref-en.txt`, then apply the override table. Do not SSH or submit jobs.
+Use this file only when the caller supplies a **structured handoff** — the production's own shot/segment handoff notes, or a `minimax-h3` brief. Lock `prompt_mode` from it. Write the official structure from `base-en.txt` or `ref-en.txt`, then apply the override table. Do not SSH or submit jobs.
 
 ## Overrides (brief present)
 
