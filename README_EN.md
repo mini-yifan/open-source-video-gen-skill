@@ -2,7 +2,7 @@
 
 **Open-source AI video production skill suite** · Open MiniMax H3 × elastic AutoDL GPUs × fully agent-managed production
 
-English | [简体中文](./README.md)
+English | [简体中文](./README.md) | [📹 Video intro (Bilibili, Chinese)](https://www.bilibili.com/video/BV1mKbM6GEHH/)
 
 > Bring an idea — a ten-second visual gag, a fashion clip, or a multi-episode short drama. One sentence is enough.
 > A clip that's a dozen seconds long takes a single skill and zero pipeline; finished, multi-part works get one of two human-AI video templates — treatment, script, art references, server power-up, generation, scoring, mixing, and review. You only say "approved" or "change this" at the gates.
