@@ -66,15 +66,21 @@ fi
 
 line ""
 line "=== 四、本地工具 ==="
-for tool in python3 node ffmpeg ffprobe expect; do
+for tool in python3 node ffmpeg ffprobe curl; do
   if command -v "$tool" >/dev/null 2>&1; then
     ok "$tool"
   else
     bad "$tool 未安装"
-    tip "macOS: brew install $tool （ffmpeg/expect 常缺）"
-    [ "$tool" = "ffmpeg" ] || [ "$tool" = "ffprobe" ] || [ "$tool" = "expect" ] || MISSING_HARD=1
+    tip "macOS: brew install $tool （ffmpeg 常缺；curl 系统一般自带）"
+    [ "$tool" = "ffmpeg" ] || [ "$tool" = "ffprobe" ] || MISSING_HARD=1
   fi
 done
+# expect/sshpass 只是 SSH 兜底能力（面板发现不需要，见 SKILL.md「面板发现」）：
+if command -v expect >/dev/null 2>&1 || command -v sshpass >/dev/null 2>&1; then
+  ok "SSH 兜底可用（expect/sshpass 至少其一）"
+else
+  line "  [－] expect/sshpass 都没有（Windows 默认如此）——不影响开机找面板，仅少一条 SSH 兜底"
+fi
 
 if [ "$PROBE" = "--probe" ]; then
   line ""

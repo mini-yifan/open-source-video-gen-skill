@@ -167,7 +167,7 @@ history 里 `execution_start` / `execution_success` 的 `timestamp` 相减 /1000
 ### 其他
 
 - 输出量化：时长按 17 帧块取整；高/宽对齐 32（1280x720 请求实得 1280x704）。交付前本地 `scale/pad` 归一化并裁齐槽长。
-- ComfyUI 首次开机写 `/root/面板地址.txt` 可能晚几分钟；AutoDL 模式下面板地址优先从快照 `service_6006_domain/port/port_protocol` 推导（autodl_app.py 已内置，SSH 文件只作回退）。
+- ComfyUI 首次开机写 `/root/面板地址.txt` 可能晚几分钟；AutoDL 模式下面板地址从快照**全部** `service_*_domain` 并行直探推导（autodl_app.py 已内置，无需 SSH；SSH 文件只在有 expect/sshpass 的机器上作兜底）。
 
 ### 2026-08-27 实测追加：expect/extract 两个致命坑（已修复，勿回退）
 
@@ -176,6 +176,16 @@ history 里 `execution_start` / `execution_success` 的 `timestamp` 相减 /1000
 3. **快照面板 URL 只能当候选**：`service_6006_*` 有三坑（端口内嵌进 domain 且 port 字段=0、协议字段 http 实为 https、域名与真实代理域名可能差一个前缀导致 404）。autodl `boot` 的统一候选循环会对每个候选探活 90s，不 ready 就换下一个，权威来源是实例内地址文件。
 4. **wait_comfy 参数遮蔽**：`boot(uuid, wait_run, wait_comfy)` 的参数名与模块级 `wait_comfy()` 函数同名，函数体内一调用就 `TypeError: 'int' object is not callable`。现已拆出 `_run_boot`（参数名 `wait_comfy_secs`）。新增引导逻辑时不要再引入同名参数。
 5. **submit_video.py slot-map 分支**：payload 变量名是 `slot_map`（曾是 `m` 导致 NameError，且崩在 generate 之后——任务已经提交、prompt_id 丢失）。改这类分支后必须连 payload 一起核对。
+
+### 2026-09-08 实测追加：Windows 无 expect → 面板发现卡死到超时（已修复，勿回退）
+
+现象：Windows 上 `boot` 在"开机后找面板"阶段空转数分钟才失败，GPU 一直按秒计费。根因有三，全部在同一台 Windows 10 + pro-787880159a61 上复现并修复：
+
+1. **候选只看 `service_6006_domain`**：该实例 6006 端口是**原生 ComfyUI**（`/api/comfy/status` 恒 404），而 H3 桥接 API 在 **6008**（`uu450174-…`）。唯一候选被拉黑后循环里再无新候选，只能空转到 360s 超时。修复：`panel_candidates()` 泛化枚举全部 `service_*_domain`，并行探测取先 ready 的那个。
+2. **SSH 兜底依赖 `expect`**：Windows 没有 expect 也没有 sshpass，`connect_server.py` 的 SystemExit 被主循环静默 `pass`，兜底永远失效。修复：无 expect/sshpass 时自动跳过 SSH（`ssh_available()`），connect_server.py 则秒退并打印"走 autodl_app.py boot 快路径"的指引；Linux 增加 `sshpass -e` 兜底分支。
+3. **把"200 但不是桥接 JSON"的候选当 starting 永久轮询、又把 404 永久拉黑**，两种分类都会拖慢或卡死发现。修复：`bridge_probe()` 三态严格化——200+JSON 才算桥接（网页当轮剔除），404/502 每轮重探（并行 curl 亚秒级，防误杀冷启动中的面板）。
+
+修复后（同一实例，Windows，无 expect）：面板发现一轮并行探测即命中，实测秒级返回 `export SEETACLOUD_BASE_URL=https://uu450174-….seetacloud.com:8443`。
 
 ### 单参考图最小验证流程（换实例/换工作流后的冒烟测试）
 
@@ -197,7 +207,7 @@ ffprobe test.mp4   # 期望：~5.2s（17帧块量化）、1280x704（32对齐）
 
 | 步骤 | 耗时 |
 |---|---|
-| 面板发现（快照死链秒弃 + SSH 文件 URL 探活） | **5.8s** |
+| 面板发现（快照 service_*_domain 并行直探，无需 SSH） | **2–5s** |
 | submit（1 图上传 + 占位 + 入队） | **0.9s** |
 | GPU 生成 5s 视频（COMFY_SEC，服务端推理，不可压缩） | ~112s |
 | 轮询开销（history 轮询超出生成时间的部分） | ~10s |

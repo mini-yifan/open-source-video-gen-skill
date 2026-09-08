@@ -3,7 +3,7 @@
 处理链: 伽马提亮 → 饱和补偿 → 皮肤掩膜局部增亮 → 高光 Bloom 辉光(screen 混合) → 高光软压缩
 用法: python3 beauty_glow_filter.py 输入.mp4 输出.mp4
 """
-import subprocess, sys, threading
+import re, subprocess, sys, threading
 import numpy as np
 import cv2
 
@@ -55,18 +55,47 @@ def process(frame, W):
 
 GAMMA_LUT, KNEE_LUT = gamma_lut(GAMMA), knee_lut(KNEE_START)
 
+def _video_info(src):
+    """(宽, 高, fps)。优先 ffprobe；Windows 等环境常只有 ffmpeg，回退解析 `ffmpeg -i`。"""
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=width,height,r_frame_rate", "-of", "csv=p=0", src],
+            capture_output=True, text=True, check=True).stdout.strip()
+        parts = out.split(",")
+        return int(parts[0]), int(parts[1]), round(eval(parts[2]))
+    except (OSError, subprocess.CalledProcessError, ValueError):
+        pass
+    info = subprocess.run(["ffmpeg", "-hide_banner", "-i", src],
+                          capture_output=True, text=True).stderr
+    m = re.search(r"Video:.*?, (\d+)x(\d+)", info)
+    f = re.search(r"([\d.]+) fps", info)
+    if not m or not f:
+        sys.exit("ffprobe 与 ffmpeg -i 均无法解析输入视频信息")
+    return int(m.group(1)), int(m.group(2)), round(float(f.group(1)))
+
+
+def _frame_count(src):
+    try:
+        return int(subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames",
+             "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", src],
+            capture_output=True, text=True, check=True).stdout.strip())
+    except (OSError, subprocess.CalledProcessError, ValueError):
+        pass
+    last = ""
+    for line in subprocess.Popen(
+            ["ffmpeg", "-v", "info", "-i", src, "-f", "null", "-"],
+            stderr=subprocess.PIPE, text=True).stderr:  # type: ignore[union-attr]
+        m = re.search(r"frame=\s*(\d+)", line)
+        if m:
+            last = m.group(1)
+    return int(last) if last else -1
+
+
 def main(src, dst):
-    probe = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "v:0",
-         "-show_entries", "stream=width,height,r_frame_rate", "-of", "csv=p=0", src],
-        capture_output=True, text=True, check=True).stdout.strip()
-    wh, fps = probe.split(",")[0:2], probe.split(",")[2]
-    W, H = int(wh[0]), int(wh[1])
-    fps = round(eval(fps))
-    frames = int(subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames",
-         "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", src],
-        capture_output=True, text=True, check=True).stdout.strip())
+    W, H, fps = _video_info(src)
+    frames = _frame_count(src)
     print(f"输入 {W}x{H} @{fps}fps, {frames} 帧")
 
     rd = subprocess.Popen(["ffmpeg", "-v", "error", "-i", src, "-f", "rawvideo",
@@ -75,7 +104,7 @@ def main(src, dst):
         ["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
          "-s", f"{W}x{H}", "-r", str(fps), "-i", "-",
          "-i", src, "-map", "0:v", "-map", "1:a?",
-         "-c:v", "libx264", "-crf", "16", "-preset", "slow",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "16", "-preset", "slow",
          "-c:a", "copy", "-shortest", dst], stdin=subprocess.PIPE)
 
     def pump():

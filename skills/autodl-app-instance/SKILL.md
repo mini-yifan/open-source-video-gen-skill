@@ -1,15 +1,17 @@
 ---
 name: autodl-app-instance
 description: >-
-  Powers AutoDL Art application instances on and off via official API, SSHs
-  into the box, and waits until ComfyUI is ready for MiniMax H3. Use when the
+  Powers AutoDL Art application instances on and off via official API, finds
+  the ComfyUI panel by probing the instance's proxy service domains from the
+  snapshot API (no SSH needed, works on macOS / Linux / Windows), and waits
+  until ComfyUI is ready for MiniMax H3. Use when the
   user mentions AutoDL 应用实例, API开机, API关机, autodl.art, AUTODL_TOKEN,
   远程服务器开关机, or wants the agent to boot a GPU box before minimax-h3 and
   shut it down after video generation. It can wrap a minimax-h3 job with
   boot-before-generation and guaranteed power-off cleanup.
 ---
 
-# AutoDL 应用实例（开机 → SSH → 关机）
+# AutoDL 应用实例（开机 → 发现面板 → 关机）
 
 管 **应用实例** 生命周期，不管提示词、不管出片。出片走 [`minimax-h3`](../minimax-h3/SKILL.md)。
 
@@ -32,7 +34,7 @@ description: >-
   → finally: off 一次（本技能）
 ```
 
-当目标是 AutoDL 应用实例，或用户要求“开机后生成、全部完成后关机”时：**先本技能，再 minimax-h3，最后关机。** 不要只 SSH 完就结束。
+当目标是 AutoDL 应用实例，或用户要求“开机后生成、全部完成后关机”时：**先本技能，再 minimax-h3，最后关机。** 不要只发现完面板就结束。
 
 本技能只管理实例生命周期，不决定 H3 的工作流、提示词、时长、画幅或画面内容。`minimax-h3` 只有在本技能报告 `COMFY_READY`、队列可访问并提供最新面板地址后才能提交任务。
 
@@ -75,7 +77,7 @@ Task Progress:
 - [ ] 1. 确认 AUTODL_TOKEN；解析并锁定父批次的实例 UUID
 - [ ] 2. list / status
 - [ ] 3. boot：关机则 power_on，等到 running
-- [ ] 4. snapshot → SSH 发现面板；等到 ComfyUI reason=ready、队列空
+- [ ] 4. boot 并行直探快照的全部 service_*_domain，等到桥接面板 reason=ready、队列空（无 SSH 依赖，macOS/Linux/Windows 通用）
 - [ ] 5. 在当前执行环境设置 boot 输出的 SEETACLOUD_BASE_URL；打开 minimax-h3 执行全部 job
 - [ ] 6. 全部 job 进入终态、产出落盘并通过秒级校验后，立即执行一次 power_off，等到 shutdown（除非 KEEP_ON）；本地后处理（归一化/验收/滤镜）在关机后做
 ```
@@ -88,7 +90,7 @@ APP="${ZCODE_HOME:-$HOME/.zcode}/skills/autodl-app-instance/scripts/autodl_app.p
 python3 "$APP" list
 python3 "$APP" status --uuid "$AUTODL_INSTANCE_UUID"
 
-# 开机 + SSH + 等 Comfy ready，打印 export SEETACLOUD_BASE_URL=...
+# 开机 + 并行直探面板（无需 SSH）+ 等 Comfy ready，打印 export SEETACLOUD_BASE_URL=...
 python3 "$APP" boot --uuid "$AUTODL_INSTANCE_UUID"
 
 # 出片（minimax-h3 的多个 submit / poll）…
@@ -96,7 +98,7 @@ python3 "$APP" boot --uuid "$AUTODL_INSTANCE_UUID"
 python3 "$APP" off --uuid "$AUTODL_INSTANCE_UUID" --wait
 ```
 
-已在运行只连 SSH：同样用 `boot` / `ensure`（内部会跳过重复开机）。
+已在运行：同样用 `boot` / `ensure`（内部会跳过重复开机，直接进入面板发现）。
 
 已经 `shutdown` 再 `off`、已经 `running` 再 `on`：脚本当成功，不报错。
 
@@ -108,23 +110,29 @@ python3 "$APP" off --uuid "$AUTODL_INSTANCE_UUID" --wait
 2. `power_on` 的 `payload` 必须是 `"gpu"`。API 不能无卡开机。
 3. `status` / `snapshot` 用 **GET + query** `?instance_uuid=`。JSON body 会 `RequestParameterIsWrong`。
 4. 不要调 `release`。那是释放实例，不是关机。
-5. `boot` 成功只说明容器在跑；H3 提交前必须看到 `reason=ready`。首启实例的 ComfyUI 初始化可能花几分钟——`boot` 会用快照面板地址轮询到 ready，不要因为面板文件暂不存在就手动放弃或换实例。
+5. `boot` 成功只说明容器在跑；H3 提交前必须看到 `reason=ready`。首启实例的 ComfyUI 初始化可能花几分钟——`boot` 会轮询桥接面板直到 ready，不要因为候选还没 ready 就手动放弃或换实例。
 6. 出片失败、轮询超时、用户中断，也要在父批次结束时关机。多个 job 不能在单个视频完成后关机；用 `try/finally` 语义：先记 UUID，批次结束时执行一次 `off --wait`。
 7. 本机 HTTPS 可能有自签证书链，脚本用 `curl -sk`。不要改回强制校验然后卡住。
 8. 关机停的是 GPU 计费。系统盘仍按日扣。连续关机 60 天会释放应用实例。
 
 ---
 
-## SSH 与面板
+## 面板发现：无 SSH 快路径（主路径）+ SSH 兜底
 
-`boot` 内部是**统一候选循环**（2026-08-27 二次实测后定型）：快照 URL 与实例内地址文件 URL 都只是"候选"——轮流尝试、各自探活 90 秒、不 ready 换下一个、试过的记入已试集合，直到某个候选 `reason=ready` 为止。不要假设任何一个来源第一次就正确：
+`boot` 的面板发现是**快照域名并行直探**（2026-09-08 跨平台重构，Mac/Linux/Windows 通用）：
 
-实测过的快照 `service_6006_*` 三个坑：
+1. 从快照 API 一次性枚举**全部** `service_*_domain`（6006/6008/…，泛化匹配，不写死端口）；
+2. 用线程池并行 curl 各候选的 `/api/comfy/status`（`curl -sk`，8s 超时）；
+3. `200 + JSON + reason=ready` → 立即返回该候选；`200 + JSON 但未 ready` → starting，保留轮询；`200 但返回网页`（如 AutoPanel 首页）→ 不是桥接，当轮剔除；404/502/不可达 → 每轮重探（并行 curl 亚秒级，代价可忽略，防误杀冷启动中的面板）。
 
-1. **端口内嵌在 domain 里**（`xxx.seetacloud.com:8443`）而 `service_6006_port` 字段是 `0`——不能因为 port 字段为空/为 0 就放弃；
-2. **协议字段可能写 http**，但 8443 代理实际是 https（以实例内地址文件为准）；
-3. **快照域名可能与真实代理域名不一致**（实测 `u450174-…` vs 真实 `uu450174-…`，快照地址 404）——所以快照 URL 探活失败就换下一个候选，权威来源是实例内 `/root/面板地址.txt`。
+SSH（读实例内 `/root/面板地址.txt`）只是**兜底**：仅当本机有 `expect`（macOS 自带）或 `sshpass`（Linux 常见）时才启用；Windows 两者都没有，自动跳过——旧版在 Windows 上唯一的快照候选是 6006（原生 ComfyUI，`/api/comfy/status` 恒 404），被当作死链后循环空转到超时，这就是"开机后找面板一直卡住"的根因。
 
-**Ready 时长（2026-08-27 秒表修正）**：ComfyUI 通常随开机几十秒内 ready；实测（实例已运行时）从发现到 ready 仅 **5.8s**。此前记录的"冷启动 3–6 分钟/十几分钟"是**误诊**——延迟全部来自发现逻辑的三处 bug（PANEL 标记被命令回显污染导致 SSH 解析必失败、快照 URL 域名错误 404、把"尚未 ready"的候选当死链永久拉黑），不是服务器慢。冷开机（从 shutdown 起）ComfyUI ready 一般 <1 分钟，磁盘缓存冷时更久；发现循环以 5s 节奏轮询、死链秒弃、`starting` 状态绝不拉黑，ready 一出现立即返回，不会浪费任何等待。expect 超时保持 180s 只是防极端慢命令的保险，不影响快路径。
+实测过的快照域名坑（候选枚举与协议纠偏都已内置处理）：
 
-密码只放子进程环境变量 `SEETACLOUD_SSH_PW`（expect 内 `$env(...)` 读取），不要 echo、不要写进脚本文本。端口、主机以 **snapshot** 为准（开机后会变）。
+1. **端口内嵌在 domain 里**（`xxx.seetacloud.com:8443`）而 `service_*_port` 字段是 `0`——不能因为 port 字段为空/为 0 就放弃；
+2. **协议字段可能写 http**，但 8443 代理实际是 https——自动纠偏；
+3. **桥接面板可能在任何一个 service 端口上**：pro-787880159a61 实测 6006（`u450174-…`）= 原生 ComfyUI（桥接端点 404），6008（`uu450174-…`）= H3 桥接 API——所以必须全部枚举、并行探测，取先 ready 的那个，不要只看 6006。
+
+**Ready 时长**：ComfyUI 通常随开机几十秒内 ready。实例已运行时，面板发现一般 **2–5s** 内完成（一轮并行探测即命中）；冷开机（从 shutdown 起）ComfyUI ready 一般 <1 分钟，磁盘缓存冷时更久。`starting` 状态绝不拉黑，ready 一出现立即返回。
+
+SSH 兜底的密码只放子进程环境变量 `SEETACLOUD_SSH_PW` / `SSHPASS`（expect 内 `$env(...)` 读取、sshpass 用 `-e`），不要 echo、不要写进脚本文本。端口、主机以 **snapshot** 为准（开机后会变）。

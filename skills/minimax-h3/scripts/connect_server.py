@@ -6,7 +6,8 @@
   export SEETACLOUD_SSH_PASSWORD='...'
   python3 connect_server.py --host connect.westd.seetacloud.com --port 15331 --user root
 
-不要把密码写进文件。依赖本机 expect。
+不要把密码写进文件。SSH 登录依赖 expect（macOS 自带）或 sshpass（Linux）；
+Windows 无此依赖也能用：autodl_app.py boot/ensure 走快照域名直探，无需 SSH。
 """
 from __future__ import annotations
 
@@ -44,13 +45,21 @@ def parse_args() -> argparse.Namespace:
 
 
 def ssh_expect(host: str, port: int, user: str, password: str, command: str) -> str:
+    """跑一次 SSH 命令：优先 expect（macOS 自带），Linux 可用 sshpass -e 兜底。
+    Windows 两者通常都没有——此时不要走 SSH：
+    autodl_app.py boot/ensure 会用快照 service_*_domain 并行直探直接拿到面板地址。"""
+    env = {**os.environ}
+    if password:
+        env["SEETACLOUD_SSH_PW"] = password
+        env["SSHPASS"] = password
+    ssh_argv = [
+        "ssh", "-o", "StrictHostKeyChecking=accept-new",
+        "-o", "PreferredAuthentications=password", "-o", "PubkeyAuthentication=no",
+        "-p", str(port), f"{user}@{host}", command,
+    ]
     expect_bin = shutil.which("expect")
-    if not expect_bin:
-        sys.exit("需要本机 expect（macOS 自带 /usr/bin/expect）")
-    # Write expect script to a temp file so password quoting stays safe.
-    fd, path = tempfile.mkstemp(prefix="h3ssh_", suffix=".exp")
-    os.close(fd)
-    try:
+    sshpass_bin = shutil.which("sshpass")
+    if expect_bin:
         # Tcl 双引号会替换 $ 和 [ ]，远程命令里的 shell 变量必须先转义；
         # 密码通过环境变量注入 expect，绝不写进脚本文本，避免引号/特殊字符问题。
         # 超时必须 ≥180s：实例刚开机时 ComfyUI 冷启动占满磁盘/CPU，远端探测命令
@@ -66,23 +75,31 @@ expect {{
 }}
 expect eof
 """
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(body)
-        proc = subprocess.run(
-            [expect_bin, path],
-            capture_output=True,
-            text=True,
-            env={**os.environ, "SEETACLOUD_SSH_PW": password},
-        )
-        out = (proc.stdout or "") + (proc.stderr or "")
-        if proc.returncode != 0 and "PANEL_BEGIN" not in out:
-            sys.exit(f"SSH 失败 (exit {proc.returncode}):\n{out[-2000:]}")
-        return out
-    finally:
+        fd, path = tempfile.mkstemp(prefix="h3ssh_", suffix=".exp")
+        os.close(fd)
         try:
-            os.remove(path)
-        except OSError:
-            pass
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(body)
+            proc = subprocess.run([expect_bin, path], capture_output=True, text=True, env=env)
+        finally:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+    elif sshpass_bin and os.name != "nt":
+        proc = subprocess.run(["sshpass", "-e", *ssh_argv], capture_output=True, text=True, env=env)
+    else:
+        sys.exit(
+            "本机没有 expect / sshpass，无法 SSH 密码登录（Windows 默认都没有）。\n"
+            "无需 SSH：运行 autodl_app.py boot --uuid <UUID>，它会从 AutoDL 快照 API\n"
+            "枚举全部 service_*_domain 并行直探，直接打印 SEETACLOUD_BASE_URL。"
+        )
+    out = (proc.stdout or "") + (proc.stderr or "")
+    if password:
+        out = out.replace(password, "<redacted>")
+    if proc.returncode != 0 and "PANEL_BEGIN" not in out:
+        sys.exit(f"SSH 失败 (exit {proc.returncode}):\n{out[-2000:]}")
+    return out
 
 
 def extract_panel(text: str) -> str:

@@ -18,9 +18,11 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 BASE_DEFAULT = "https://www.autodl.art"
@@ -314,31 +316,6 @@ def curl_text(url: str, timeout: int = 20, method: str = "GET") -> tuple[int, st
     return code, body.strip()
 
 
-def comfy_probe(panel: str, timeout: int = 20) -> str:
-    """三态探活：ready / starting / dead。
-    dead = 404/不可达连续 3 次（秒级放弃死候选，可安全拉黑）；
-    starting = 200 但未 ready（服务在启动，绝不能拉黑，稍后重试）。"""
-    url = panel.rstrip("/") + "/api/comfy/status"
-    bad = 0
-    t0 = time.time()
-    while time.time() - t0 < timeout:
-        code, body = curl_text(url, timeout=8)
-        if code == 200:
-            try:
-                obj = json.loads(body)
-                if obj.get("reason") == "ready" and obj.get("running") is True:
-                    return "ready"
-            except json.JSONDecodeError:
-                pass
-            return "starting"
-        elif code in (0, 404, 502, 503):
-            bad += 1
-            if bad >= 3:
-                return "dead"
-        time.sleep(2)
-    return "starting"
-
-
 def comfy_ready(panel: str, timeout: int) -> bool:
     """轮询 panel 直到 ComfyUI reason=ready；超时返回 False（不抛错、不退出）。"""
     t0 = time.time()
@@ -383,28 +360,65 @@ def wait_comfy(panel: str, timeout: int) -> None:
     sys.exit(f"ComfyUI 未 ready，超时 {timeout}s。最后: {last[:400]}")
 
 
-def snapshot_panel(snap: dict) -> str:
-    """面板地址直接从快照的 service_6006_* 推导，不依赖实例内的地址文件。
+def panel_candidates(snap: dict) -> list[str]:
+    """面板候选地址：枚举快照里全部 service_*_domain，不只看 6006。
 
-    注意两个真实坑（2026-08-27）：
+    两个真实坑（2026-08-27 / 2026-09-08 复测）：
     - 端口可能已内嵌在 domain 里（如 `xxx.seetacloud.com:8443`），而
-      `service_6006_port` 字段是 0——此时不能因为 port 为空就放弃；
-    - `service_6006_port_protocol` 可能是 http，但 8443/443 代理端口实际是
-      https（实例内地址文件写的是 https），这里做纠偏。
+      `service_*_port` 字段是 0——此时不能因为 port 为空就放弃；
+    - `service_*_port_protocol` 可能写 http，但 8443/443 代理端口实际是
+      https（实例内地址文件写的也是 https），这里做纠偏。
+    - 桥接面板可能在任何一个 service 端口上：pro-787880159a61 实测
+      6006 = 原生 ComfyUI（/api/comfy/status 404），6008 = H3 桥接 API
+      （uu450174-…）。所以必须全部枚举、并行探测，取先 ready 的那个。
     """
-    proto = str(snap.get("service_6006_port_protocol") or "").strip().lower()
-    dom = str(snap.get("service_6006_domain") or "").strip()
-    port = str(snap.get("service_6006_port") or "").strip()
-    if not dom:
-        return ""
-    if re.search(r":\d+$", dom):
-        url_port = dom.rsplit(":", 1)[-1]
-        if not proto or (proto == "http" and url_port in ("8443", "443")):
-            proto = "https"
-        return f"{proto}://{dom}"
-    if port and port != "0":
-        return f"{(proto or 'https')}://{dom}:{port}"
-    return ""
+    cands: list[str] = []
+    for key, val in snap.items():
+        if not re.match(r"service_\d+_domain$", str(key)):
+            continue
+        dom = str(val or "").strip()
+        if not dom:
+            continue
+        base = str(key).rsplit("_domain", 1)[0]
+        proto = str(snap.get(f"{base}_port_protocol") or "").strip().lower()
+        if re.search(r":\d+$", dom):
+            url_port = dom.rsplit(":", 1)[-1]
+            if not proto or (proto == "http" and url_port in ("8443", "443")):
+                proto = "https"
+            cands.append(f"{proto}://{dom}")
+        else:
+            port = str(snap.get(f"{base}_port") or "").strip()
+            if port and port != "0":
+                cands.append(f"{(proto or 'https')}://{dom}:{port}")
+    return cands
+
+
+def bridge_probe(url: str, timeout: int = 8) -> str:
+    """判定候选是不是 H3 桥接面板：ready / starting / not_bridge / dead。
+
+    ready      = 200 且 JSON reason=ready、running=true；
+    starting   = 200 且是桥接 JSON 但还没就绪（绝不能拉黑）；
+    not_bridge = 200 但不是 JSON（如 AutoPanel 网页）——服务角色不会变，可当轮拉黑；
+    dead       = 404/502/不可达——冷启动中随时可能变 ready，绝不能拉黑，
+                 下一轮重探（并行 curl 亚秒级）。2026-09-08 真机教训：开机后
+                 ComfyUI 尚未监听时两候选同时 dead，若拉黑会空转到超时。
+    """
+    code, body = curl_text(url.rstrip("/") + "/api/comfy/status", timeout=timeout)
+    if code == 200:
+        try:
+            obj = json.loads(body)
+        except json.JSONDecodeError:
+            return "not_bridge"
+        if obj.get("reason") == "ready" and obj.get("running") is True:
+            return "ready"
+        return "starting"
+    return "dead"
+
+
+def ssh_available() -> bool:
+    """SSH 发现只是兜底：需要 expect（macOS 自带）或 sshpass（Linux 常见）。
+    Windows 两者都没有——此时纯 API 域名直探快路径是主路径，跳过 SSH。"""
+    return shutil.which("expect") is not None or shutil.which("sshpass") is not None
 
 
 def boot(uuid: str, wait_run: int, wait_comfy: int) -> None:
@@ -418,39 +432,56 @@ def _run_boot(uuid: str, wait_run: int, wait_comfy_secs: int) -> None:
     if st != "running":
         if st == "shutting_down":
             wait_status(uuid, {"shutdown"}, timeout=wait_run)
-        try:
-            power_on(uuid)
-        except RuntimeError as e:
-            if "无法进行开机" not in str(e):
-                raise
+        # 无库存是常态波动（2026-09-08 实测连续多次），SETUP.md 也承诺自动重试；
+        # 默认重试约 3 分钟，AUTODL_BOOT_INVENTORY_RETRIES 可调（0=不重试）。
+        retries = int(os.environ.get("AUTODL_BOOT_INVENTORY_RETRIES", "5"))
+        for attempt in range(max(1, retries + 1)):
+            try:
+                power_on(uuid)
+                break
+            except RuntimeError as e:
+                if "无法进行开机" in str(e):
+                    break
+                if "暂无库存" not in str(e) or attempt >= retries:
+                    raise
+                wait_s = 40
+                print(f"(暂无库存，{wait_s}s 后重试 {attempt + 1}/{retries})", flush=True)
+                time.sleep(wait_s)
         wait_status(uuid, {"running"}, timeout=wait_run)
 
-    # 快路径候选循环（2026-08-27 二次修正）：ComfyUI 的 ready 是服务端启动时间
-    # （本实例实测冷开机 >27s，快照死链与 SSH 正链并存）。策略：
-    # 快照 URL 与 SSH 文件 URL 立即并行取得；dead（404×3）拉黑；
-    # starting 保留轮询，绝不因"尚未就绪"而拉黑——这是上一版的致命 bug。
+    # 快路径（2026-09-08 跨平台修正）：实例运行后，代理域名从快照 API 一次性全拿
+    # （service_6006/6008/…），并行探测 /api/comfy/status，桥接面板通常第一轮即命中。
+    # SSH（读实例内 /root/面板地址.txt）只在有 expect/sshpass 的机器上作为兜底；
+    # Windows 没有 expect，旧版在这里空转轮询到超时（唯一候选 6006 是原生
+    # ComfyUI 恒 404，桥接其实在 6008）——这就是"开机后找面板一直卡住"的根因。
+    # 策略：starting 保留轮询绝不拉黑；200-但非桥接（网页）当轮拉黑；
+    # 404/502 等每轮重探（代价亚秒级），防误杀冷启动中的面板。
     t_boot = time.time()
     deadline = time.time() + max(wait_comfy_secs + 60, 300)
-    dead: set[str] = set()
+    not_bridge: set[str] = set()
     host = port = 0
     password = ""
     panel = ""
     ssh_url = ""
-    ssh_next = 0.0  # 立即做第一次 SSH
-    round_i = 0
+    ssh_next = 0.0
+    snap_urls: list[str] = []
+    snap_next = 0.0  # 运行中域名不变，30s 刷新一次即可
+    use_ssh = ssh_available()
+    if not use_ssh:
+        print("(无 expect/sshpass：跳过 SSH，走快照域名并行直探)", flush=True)
     while time.time() < deadline and not panel:
-        round_i += 1
-        snap_url = ""
-        try:
-            snap = snapshot(uuid)
-            snap_url = snapshot_panel(snap)
-            host = snap.get("proxy_host") or host
-            port = int(snap.get("ssh_port") or port) or port
-            password = password or (snap.get("root_password") or "")
-        except Exception as e:
-            print(f"(快照错误: {str(e)[:100]})", flush=True)
-        if host and port and password and time.time() >= ssh_next:
-            ssh_next = time.time() + 30
+        if time.time() >= snap_next:
+            snap_next = time.time() + 30
+            try:
+                snap = snapshot(uuid)
+                snap_urls = panel_candidates(snap)
+                host = snap.get("proxy_host") or host
+                port = int(snap.get("ssh_port") or port) or port
+                password = password or (snap.get("root_password") or "")
+            except Exception as e:
+                print(f"(快照错误: {str(e)[:100]})", flush=True)
+        if use_ssh and host and port and password and time.time() >= ssh_next:
+            ssh_next = time.time() + 60
             try:
                 got, _gpu = ssh_and_panel(host, port, password)
                 if got:
@@ -458,41 +489,35 @@ def _run_boot(uuid: str, wait_run: int, wait_comfy_secs: int) -> None:
             except SystemExit:
                 pass
         cands: list[str] = []
-        for c in (snap_url, ssh_url):
-            if c and c not in dead and c not in cands:
+        for c in (*snap_urls, ssh_url):
+            if c and c not in not_bridge and c not in cands:
                 cands.append(c)
-        for cand in cands:
-            st = comfy_probe(cand, timeout=20)
-            print(f"[{time.time()-t_boot:6.1f}s] {cand} -> {st}", flush=True)
-            if st == "ready":
+        if not cands:
+            time.sleep(5)
+            continue
+        with ThreadPoolExecutor(max_workers=min(8, len(cands))) as ex:
+            probes = dict(zip(cands, ex.map(bridge_probe, cands)))
+        for cand, stp in probes.items():
+            print(f"[{time.time()-t_boot:6.1f}s] {cand} -> {stp}", flush=True)
+            if stp == "ready":
                 panel = cand
                 break
-            if st == "dead":
-                dead.add(cand)
+            if stp == "not_bridge":
+                not_bridge.add(cand)
         if not panel:
-            time.sleep(5)
+            time.sleep(4)
     if not panel:
-        sys.exit(f"面板发现超时（{int(time.time()-t_boot)}s）：dead={sorted(dead)}")
+        sys.exit(
+            f"面板发现超时（{int(time.time()-t_boot)}s）：非桥接候选={sorted(not_bridge)}。"
+            "可检查实例应用是否为 MINIMAX-H3、安全代理端口是否已放行。"
+        )
     print(f"[{time.time()-t_boot:6.1f}s] 面板就绪: {panel}", flush=True)
 
     print("COMFY_READY", flush=True)
     print(f"export SEETACLOUD_BASE_URL={json.dumps(panel)}", flush=True)
     print(f"export AUTODL_INSTANCE_UUID={json.dumps(uuid)}", flush=True)
-    # GPU/LoRA 诊断信息默认关闭（省 5-10s）；AUTODL_BOOT_DIAG=1 打开
-    if os.environ.get("AUTODL_BOOT_DIAG") == "1" and host and port and password:
-        try:
-            _, gpu = ssh_and_panel(host, port, password)
-            if gpu:
-                print(f"GPU={gpu}", flush=True)
-        except SystemExit:
-            pass
-
-
-def _unused_wait_comfy(panel: str, timeout: int) -> None:
-    print(f"export SEETACLOUD_BASE_URL={json.dumps(panel)}", flush=True)
-    print(f"export AUTODL_INSTANCE_UUID={json.dumps(uuid)}", flush=True)
-    # GPU/LoRA 信息仅诊断用，失败不影响主流程
-    if host and port and password:
+    # GPU/LoRA 诊断信息默认关闭（省 5-10s）；AUTODL_BOOT_DIAG=1 打开（需 SSH 兜底可用）
+    if os.environ.get("AUTODL_BOOT_DIAG") == "1" and use_ssh and host and port and password:
         try:
             _, gpu = ssh_and_panel(host, port, password)
             if gpu:

@@ -111,7 +111,7 @@ bash scripts/doctor.sh --probe  # 额外真实探活（调 AutoDL API 列实例�
 
 也可以直接对 AI 说「检查一下环境配置」，它会跑这个脚本并逐项解释缺什么、怎么补。
 
-本地工具清单（`doctor.sh` 会一并检查）：`python3`、`node`、`ffmpeg`、`ffprobe`、`expect`。macOS 可用 `brew install ffmpeg expect` 补齐。
+本地工具清单（`doctor.sh` 会一并检查）：`python3`、`node`、`ffmpeg`、`ffprobe`、`curl`。macOS 可用 `brew install ffmpeg` 补齐；Windows 10+ 自带 `curl.exe`。`expect`/`sshpass` 只有在走 SSH 兜底时才需要（macOS 自带 expect），**开机找面板不需要它们**——面板发现走 AutoDL 快照 API 的服务域名并行直探，三大系统通用。
 
 ---
 

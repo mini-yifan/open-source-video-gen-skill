@@ -33,7 +33,7 @@ MiniMax H3 单次生成时长为 **5–15 秒**。如果用户指定时长，严
 组合模式的生命周期由 AutoDL 技能管理：
 
 1. 在批次开始前解析并记录实例 UUID，建立本批次的 job 清单。
-2. 每个批次只执行一次 `boot`；捕获最新 `SEETACLOUD_BASE_URL`，在当前执行环境中显式设置。子进程里的 `export` 不会自动传回父进程。
+2. 每个批次只执行一次 `boot`；捕获最新 `SEETACLOUD_BASE_URL`，在当前执行环境中显式设置。子进程里的 `export` 不会自动传回父进程。`boot` 的面板发现走"快照 service_*_domain 并行直探"，不依赖 SSH，macOS/Linux/Windows 通用（Windows 无 expect 也能跑）。
 3. 在同一个生命周期内完成全部 H3 job 的 brief、提示词、上传、提交、轮询、下载与落盘秒级校验。单个视频使用一次 submit/poll 脚本，不代表要重新 boot。归一化、抽帧验收、滤镜、调参重跑等本地后处理放到关机之后，不得因此推迟关机。
 4. 跟踪每个 job 的状态：`pending`、`running`、`succeeded`、`failed` 或 `cancelled`。重试和用户在关机前追加的视频仍属于同一个批次。
 5. 所有计划 job 都进入终态、结果已下载（并通过落盘秒级校验）或明确记录失败，且没有仍在运行的 H3 任务时，**立即**执行一次 `autodl_app.py off --uuid <uuid> --wait`；不要为归一化/验收/滤镜等本地后处理推迟关机。
@@ -52,7 +52,7 @@ MiniMax H3 单次生成时长为 **5–15 秒**。如果用户指定时长，严
 #    若只写在 ~/.zshrc，非交互 shell 常不加载——先 source
 [ -f ~/.config/autodl.env ] || source ~/.zshrc
 
-# 1) 开机（整个批次只此一次）：三态探活，warm 发现实测 5.8s；冷开机一般 <1min ready
+# 1) 开机（整个批次只此一次）：面板并行直探无需 SSH，已运行实例发现 2–5s；冷开机一般 <1min ready
 python3 ~/.zcode/skills/autodl-app-instance/scripts/autodl_app.py boot --uuid <UUID>
 #   → 记下输出里的 export SEETACLOUD_BASE_URL=...，后续每条命令都带上
 
