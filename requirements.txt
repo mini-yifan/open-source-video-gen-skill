@@ -1,0 +1,11 @@
+# Python deps for the skill scripts. System tools (ffmpeg, ffprobe, node, curl,
+# expect) are not pip-installable; see SETUP.md and `bash scripts/doctor.sh`.
+#
+# Requires Python 3.9+ (`str.removeprefix` in autodl_app.py).
+
+# Hard-required: MiniMax H3 submit / poll / workflow discovery / SSH panel probe
+httpx
+
+# Optional: beauty-video-gen local glow filter (scripts/beauty_glow_filter.py)
+numpy
+opencv-python

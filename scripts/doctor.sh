@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # 环境自检：凭证与本地工具逐项检查，输出 ✓/✗ 与修复提示。
 # 用法：bash scripts/doctor.sh [--probe]
-#   --probe 额外真实探活（调 AutoDL API 列实例、探测 TokenHub 端点可达性）
+#   --probe 额外真实探活（调 AutoDL API 列实例）
 # 退出码：0 全部硬必需项就绪；1 存在缺失（详见输出）。
+#
+# 音乐不再走 TokenHub/腾讯云 API（2026-08-31 已移除）。独立配乐与 TTS
+# 共用 AUTODL_TOKEN，在同一台 MINIMAX-H3 实例上跑。
 
 set -u
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,6 +18,7 @@ line() { printf '%s\n' "$*"; }
 ok()   { line "  [✓] $*"; }
 bad()  { line "  [✗] $*"; }
 tip()  { line "      → $*"; }
+skip() { line "  [－] $*"; }
 
 # 不 source 私有文件（避免执行任意内容），只做只读存在性检查
 env_file_has() { # $1=file $2=var
@@ -34,34 +38,30 @@ else
 fi
 
 line ""
-line "=== 二、默认可换：生图（默认 Cursor） ==="
+line "=== 二、默认可换：生图（优先 Agent 自带，备选 Cursor） ==="
 CURSOR_MJS="$REPO_ROOT/skills/cursor-image-gen/scripts/generate_with_cursor.mjs"
 if command -v node >/dev/null 2>&1 && [ -f "$CURSOR_MJS" ]; then
   if node "$CURSOR_MJS" --doctor 2>/dev/null | grep -q '"logged_in"[[:space:]]*:[[:space:]]*true'; then
-    ok "Cursor Agent 已登录"
+    ok "Cursor Agent 已登录（备选生图执行器可用）"
   else
-    bad "Cursor Agent 未登录（默认生图执行器）"
-    tip "登录：cursor-agent login（或设置 CURSOR_API_KEY）"
-    tip "替代：Codex 自带生图等其他工具也可，告知 AI 即可，见 SETUP.md 第 2 节"
+    skip "Cursor Agent 未登录（可换：Agent 自带生图优先，不必装 Cursor）"
+    tip "当前 Agent 有生图能力即可零配置；点名 Cursor 时再 login 或设 CURSOR_API_KEY"
+    tip "见 SETUP.md 第 2 节"
   fi
 else
-  bad "无法检查 Cursor 登录状态（缺 node 或脚本不存在）"
-  tip "安装 Node.js 后重试；或改用其他生图工具，见 SETUP.md 第 2 节"
+  skip "无法检查 Cursor 登录状态（缺 node 或脚本不存在）——Agent 自带生图仍可用"
+  tip "需要 Cursor 生图时安装 Node.js 后重试；见 SETUP.md 第 2 节"
 fi
 
 line ""
-line "=== 三、可选增强：TokenHub 音乐 API ==="
-TOKENHUB_ENV="${TOKENHUB_ENV_FILE:-$HOME/.config/tokenhub.env}"
-LEGACY_ENV="${MINIMAX_MUSIC_ENV_FILE:-$HOME/.config/minimax-music.env}"
-if [ -n "${TOKENHUB_API_KEY:-}" ] || [ -n "${MINIMAX_API_KEY:-}" ] \
-  || env_file_has "$TOKENHUB_ENV" TOKENHUB_API_KEY \
-  || env_file_has "$TOKENHUB_ENV" MINIMAX_API_KEY \
-  || env_file_has "$LEGACY_ENV" TOKENHUB_API_KEY \
-  || env_file_has "$LEGACY_ENV" MINIMAX_API_KEY; then
-  ok "TokenHub API key 已配置（可选增强已启用）"
+line "=== 三、可选增强：音乐生成与 TTS 配音 ==="
+skip "MiniMax Music 3 / Qwen3-TTS 共用上面的 AUTODL_TOKEN，无需新凭证"
+tip "H3 视频自带音轨与对白；独立配乐/配音见 SETUP.md 第 3 节"
+if command -v expect >/dev/null 2>&1; then
+  ok "expect（音乐 scp 与 TTS SSH 通道需要）"
 else
-  line "  [－] TokenHub API key 未配置（可选，不影响出片）"
-  tip "H3 生成的视频自带音轨；想叠加独立背景音乐见 SETUP.md 第 3 节"
+  skip "expect 未安装（视频生成不需要；minimax-music-gen / qwen3-tts 需要）"
+  tip "macOS 自带；Debian/Ubuntu: sudo apt install expect"
 fi
 
 line ""
@@ -72,14 +72,31 @@ for tool in python3 node ffmpeg ffprobe curl; do
   else
     bad "$tool 未安装"
     tip "macOS: brew install $tool （ffmpeg 常缺；curl 系统一般自带）"
-    [ "$tool" = "ffmpeg" ] || [ "$tool" = "ffprobe" ] || MISSING_HARD=1
+    MISSING_HARD=1
   fi
 done
-# expect/sshpass 只是 SSH 兜底能力（面板发现不需要，见 SKILL.md「面板发现」）：
-if command -v expect >/dev/null 2>&1 || command -v sshpass >/dev/null 2>&1; then
-  ok "SSH 兜底可用（expect/sshpass 至少其一）"
+
+if command -v python3 >/dev/null 2>&1; then
+  if python3 -c "import httpx" >/dev/null 2>&1; then
+    ok "python3 模块 httpx（minimax-h3 提交/轮询必需）"
+  else
+    bad "python3 缺少 httpx（minimax-h3 无法提交或轮询）"
+    tip "pip3 install httpx    或    pip3 install -r requirements.txt"
+    MISSING_HARD=1
+  fi
+  if python3 -c "import numpy, cv2" >/dev/null 2>&1; then
+    ok "numpy + opencv-python（beauty-video-gen 滤镜）"
+  else
+    skip "numpy/opencv-python 未安装（仅 beauty-video-gen 提亮滤镜需要）"
+    tip "pip3 install numpy opencv-python    或    pip3 install -r requirements.txt"
+  fi
+fi
+
+# expect/sshpass 只是面板发现的 SSH 兜底（主路径是快照域名直探，见 autodl-app-instance SKILL.md）
+if command -v sshpass >/dev/null 2>&1; then
+  ok "sshpass（面板发现的 SSH 兜底可用）"
 else
-  line "  [－] expect/sshpass 都没有（Windows 默认如此）——不影响开机找面板，仅少一条 SSH 兜底"
+  skip "sshpass 没有——不影响开机找面板（Windows 默认如此）"
 fi
 
 if [ "$PROBE" = "--probe" ]; then
@@ -95,14 +112,7 @@ if [ "$PROBE" = "--probe" ]; then
       MISSING_HARD=1
     fi
   fi
-  line "  -- TokenHub 端点可达性"
-  ENDPOINT="${TOKENHUB_ENDPOINT:-https://tokenhub.tencentmaas.com/v1/wand/minimax-music/generation}"
-  CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "$ENDPOINT" 2>/dev/null || echo 000)"
-  if [ "$CODE" != "000" ]; then
-    ok "TokenHub 端点可达（HTTP $CODE；401/404/405 属正常，仅验证连通）"
-  else
-    line "  [－] TokenHub 端点不可达（音乐为可选项，仅影响独立配乐）"
-  fi
+  skip "音乐/TTS 探活：与 AutoDL 实例相同，不再探测已移除的 TokenHub 端点"
 fi
 
 line ""
