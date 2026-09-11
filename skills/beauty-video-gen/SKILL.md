@@ -213,31 +213,33 @@ description: 生成超写实、真实感、亲近感的美女时尚竖屏短视�
 **整个批次只开一次机，try/finally 保证最终关机**；实例按秒计费，等待窗口做本地活，不干等。
 
 ```bash
-source ~/.zshrc   # AUTODL_TOKEN 在 ~/.zshrc，非交互 shell 需先加载
+# 0) Token：推荐写 ~/.config/autodl.env（脚本自动回退读取，无需 source）；
+#    若只写在 ~/.zshrc，非交互 shell 常不加载——先 source
+[ -f ~/.config/autodl.env ] || source ~/.zshrc
 
 # 1) 开机（整个批次一次；记下输出的 SEETACLOUD_BASE_URL）
-python3 ~/.zcode/skills/autodl-app-instance/scripts/autodl_app.py boot --uuid <UUID>
+python3 "${ZCODE_HOME:-$HOME/.zcode}/skills/autodl-app-instance/scripts/autodl_app.py" boot --uuid <UUID>
 
 export SEETACLOUD_BASE_URL=<面板地址>
 
 # 2) 工作流发现（有参考图用 --kind u06；纯文字用 --kind u03）
 #    ⚠ 必须核对自动选中的是 H3 生成工作流（U03/U06/U02 系列）。
 #    若选成 InfiniteTalk/U11/U09 等对口型/其他工作流，用 --workflow-id 强制指定，例如：
-python3 ~/.zcode/skills/minimax-h3/scripts/discover_workflow.py --kind u06 \
+python3 "${ZCODE_HOME:-$HOME/.zcode}/skills/minimax-h3/scripts/discover_workflow.py" --kind u06 \
   --workflow-id "U06-9图3音频-V5" --out slot_map.json
 
 # 3) 提交（submit_video.py 自动上传参考图、给空图槽/音频槽填占位，防模板素材污染）
-python3 ~/.zcode/skills/minimax-h3/scripts/submit_video.py \
+python3 "${ZCODE_HOME:-$HOME/.zcode}/skills/minimax-h3/scripts/submit_video.py" \
   --prompt prompt.txt --slot-map slot_map.json \
   --seconds 10 --width 720 --height 1280 --preset speed \
   --image face_ref.png --out-json task_info.json
 
 # 4) 轮询下载（只认 history；运行中绝不取 result 接口，会拿到旧视频）
-python3 ~/.zcode/skills/minimax-h3/scripts/poll_video.py <PROMPT_ID> --download raw.mp4
+python3 "${ZCODE_HOME:-$HOME/.zcode}/skills/minimax-h3/scripts/poll_video.py" <PROMPT_ID> --download raw.mp4
 # 720p/10s 实测约 195s；1080p/10s 实测约 417s
 
 # 5) 下载落盘 + ffprobe 秒级校验通过 → 立即关机（同批次全部完成时；唯一例外：用户说保持开机）
-python3 ~/.zcode/skills/autodl-app-instance/scripts/autodl_app.py off --uuid <UUID> --wait
+python3 "${ZCODE_HOME:-$HOME/.zcode}/skills/autodl-app-instance/scripts/autodl_app.py" off --uuid <UUID> --wait
 #    归一化/抽帧验收/滤镜/调参重跑全是本地活，一律放到关机之后（Step 5/5.5），绝不拖着开机做本地事
 ```
 

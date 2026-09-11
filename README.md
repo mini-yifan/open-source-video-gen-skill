@@ -80,10 +80,19 @@ flowchart LR
 git clone https://github.com/mini-yifan/open-source-video-gen-skill.git
 cd open-source-video-gen-skill
 
-# 方式一：软链（推荐，git pull 即可更新）
-for d in skills/*/; do ln -s "$(pwd)/$d" ~/.zcode/skills/"$(basename "$d")"; done
+# Python 脚本依赖（minimax-h3 必需 httpx；beauty 滤镜另需 numpy/opencv）
+pip3 install -r requirements.txt
+
+# 方式一：软链到 ZCode（推荐，git pull 即可更新）
+mkdir -p ~/.zcode/skills
+for d in skills/*/; do ln -sfn "$(pwd)/${d%/}" ~/.zcode/skills/"$(basename "$d")"; done
+
+# 方式一（Cursor）：同样软链到 ~/.cursor/skills
+# mkdir -p ~/.cursor/skills
+# for d in skills/*/; do ln -sfn "$(pwd)/${d%/}" ~/.cursor/skills/"$(basename "$d")"; done
 
 # 方式二：复制
+mkdir -p ~/.zcode/skills
 cp -r skills/* ~/.zcode/skills/
 ```
 
@@ -97,7 +106,7 @@ cp -r skills/* ~/.zcode/skills/
 | 默认可换 | 生图（优先 Agent 自带生图能力；备选 Cursor Agent，可按点名换其它） | AI 引导登录或切换替代工具 |
 | 可选增强 | 音乐生成与 Qwen3-TTS 配音（同一台 AutoDL 实例、同一个 Token，无需新凭证；TTS 需实例预装节点） | 各自跳过；H3 生成的视频自带音轨与对白 |
 
-另需 Agent 运行时（ZCode 或任何支持 Skills 约定的 CLI Agent）和本地工具 `ffmpeg` / `ffprobe` / `python3` / `node`。
+另需 Agent 运行时（ZCode 或任何支持 Skills 约定的 CLI Agent）和本地工具 `ffmpeg` / `ffprobe` / `python3`（**3.9+**，需 `httpx`）/ `node`。
 
 **完整配置教程见 [SETUP.md](./SETUP.md)**（注册、申请、存储、验证、常见报错全覆盖）；一键自检：
 
@@ -118,4 +127,4 @@ bash scripts/doctor.sh --probe  # 额外真实探活
 
 ## 协议与致谢
 
-[MIT License](./LICENSE)。本仓库部分内容曾借鉴多个开源项目，版权声明集中记录在 [NOTICE](./NOTICE)，在此一并致谢。贡献指南见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+[MIT License](./LICENSE)。本仓库部分内容曾借鉴多个开源项目，版权声明集中记录在 [NOTICE](./NOTICE)，在此一并致谢。贡献指南见 [CONTRIBUTING.md](./CONTRIBUTING.md)。维护审计（优先事项与已知缺口）见 [AUDIT.md](./AUDIT.md)。

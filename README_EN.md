@@ -80,10 +80,19 @@ Actual costs float with AutoDL market prices and instance type; the platform's b
 git clone https://github.com/mini-yifan/open-source-video-gen-skill.git
 cd open-source-video-gen-skill
 
-# Option A: symlink (recommended; update with git pull)
-for d in skills/*/; do ln -s "$(pwd)/$d" ~/.zcode/skills/"$(basename "$d")"; done
+# Python script deps (httpx is required for minimax-h3; numpy/opencv for the beauty filter)
+pip3 install -r requirements.txt
+
+# Option A: symlink into ZCode (recommended; update with git pull)
+mkdir -p ~/.zcode/skills
+for d in skills/*/; do ln -sfn "$(pwd)/${d%/}" ~/.zcode/skills/"$(basename "$d")"; done
+
+# Option A (Cursor): same symlink into ~/.cursor/skills
+# mkdir -p ~/.cursor/skills
+# for d in skills/*/; do ln -sfn "$(pwd)/${d%/}" ~/.cursor/skills/"$(basename "$d")"; done
 
 # Option B: copy
+mkdir -p ~/.zcode/skills
 cp -r skills/* ~/.zcode/skills/
 ```
 
@@ -97,7 +106,7 @@ Dependencies come in three tiers — whatever is missing, the AI tells you on th
 | Replaceable default | image generation (prefers the running agent's built-in image tool; Cursor Agent as fallback or on explicit request) | the AI guides login or switches to your alternative tool |
 | Optional enhancement | music generation & Qwen3-TTS dubbing (same AutoDL instance, same token, no new credentials; TTS needs the preinstalled node) | each is skipped independently; H3 videos carry their own audio and dialogue |
 
-You also need an agent runtime (ZCode or any CLI agent supporting the Skills convention) and local tools: `ffmpeg` / `ffprobe` / `python3` / `node`.
+You also need an agent runtime (ZCode or any CLI agent supporting the Skills convention) and local tools: `ffmpeg` / `ffprobe` / `python3` (**3.9+**, with `httpx`) / `node`.
 
 Full setup tutorial: [SETUP.md](./SETUP.md) (Chinese). One-shot self-check:
 
@@ -118,4 +127,4 @@ Generation costs are charged by the third-party services, not this repository; m
 
 ## License and acknowledgments
 
-[MIT License](./LICENSE). Portions of this repository have adapted ideas from open-source projects; copyright notices are collected in [NOTICE](./NOTICE). See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to contribute.
+[MIT License](./LICENSE). Portions of this repository have adapted ideas from open-source projects; copyright notices are collected in [NOTICE](./NOTICE). See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to contribute. Maintenance audit (priorities and known gaps): [AUDIT.md](./AUDIT.md).

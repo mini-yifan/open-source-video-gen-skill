@@ -21,14 +21,24 @@ import tempfile
 import time
 from pathlib import Path
 
+# Sibling checkout first (clone-and-run without installing), then common skill dirs.
+_SKILLS = Path(__file__).resolve().parents[2]
 ZCODE_HOME = Path(os.environ.get("ZCODE_HOME", Path.home() / ".zcode"))
 CANDIDATE_APP = [
+    _SKILLS / "autodl-app-instance" / "scripts",
     ZCODE_HOME / "skills/autodl-app-instance/scripts",
+    Path.home() / ".zcode/skills/autodl-app-instance/scripts",
     Path.home() / ".codex/skills/autodl-app-instance/scripts",
+    Path.home() / ".cursor/skills/autodl-app-instance/scripts",
+    Path.home() / ".agents/skills/autodl-app-instance/scripts",
 ]
 CANDIDATE_SSH = [
+    _SKILLS / "minimax-h3" / "scripts",
     ZCODE_HOME / "skills/minimax-h3/scripts",
+    Path.home() / ".zcode/skills/minimax-h3/scripts",
     Path.home() / ".codex/skills/minimax-h3/scripts",
+    Path.home() / ".cursor/skills/minimax-h3/scripts",
+    Path.home() / ".agents/skills/minimax-h3/scripts",
 ]
 for p in CANDIDATE_APP:
     if (p / "autodl_app.py").is_file():

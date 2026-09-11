@@ -16,6 +16,9 @@ node_modules/
 .env.*
 *.token
 *.key
+*.pem
+autodl.env
+tokenhub.env
 
 # Editors / IDE
 .vscode/
@@ -26,5 +29,10 @@ node_modules/
 out/
 *.mp4
 *.mp3
+*.flac
+*.wav
 !skills/minimax-h3/scripts/blank_1s.mp4
 !skills/minimax-h3/scripts/silence_1s.mp3
+slot_map.json
+task_info.json
+*_task.json

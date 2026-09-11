@@ -6,11 +6,11 @@ description: >-
   references, and scene concept images, then verifies each generated image.
   Works for any project style — photoreal, anime, cartoon, fantasy creatures.
   Use when the user asks for 美术设定集, 人物三视图, 道具三视图, 场景概念图,
-  角色立绘, or visual refs before video. Prefer the running agent's own image
+  角色立绘, or visual refs before video.   Prefer the running agent's own image
   generation tool (e.g. Codex ImageGen); use cursor-image-gen only when no
-  native image generation exists or the user explicitly requests Cursor; fall
-  back to Seedream (seedream-image-gen) if blocked, filtered, or quality is
-  insufficient.
+  native image generation exists or the user explicitly requests Cursor. An
+  optional third-party Seedream skill (`seedream-image-gen`, not shipped here)
+  may be used if the default executors are blocked, filtered, or insufficient.
 ---
 
 # 美术参考图
@@ -33,7 +33,7 @@ description: >-
 
 1. **当前 Agent 自带的生图能力（首选）**：环境自带生图工具或技能（如 Codex 的 ImageGen）就直接用；有样例或已有图就把图作为参考图传给生图工具。
 2. **`cursor-image-gen`（备选）**：环境没有自带生图能力时，读 [`cursor-image-gen`](../cursor-image-gen/SKILL.md) 生成，可用 `reference_image_paths`。
-3. **Seedream（兜底）**：默认执行器被拦截、拒生、重试后仍不合格，或需要精确像素/多张本地参考图时，读 `~/.cursor/skills/seedream-image-gen/SKILL.md` 再生成。
+3. **Seedream（可选兜底，本仓库不附带）**：默认执行器被拦截、拒生、重试后仍不合格，或需要精确像素/多张本地参考图时，若本机另装了 `seedream-image-gen`（常见路径 `~/.cursor/skills/seedream-image-gen/SKILL.md`），再读它生成。没有该技能就停下来告诉用户，不要假装已安装。
 
 生成后把文件放进设定集目录（如 `美术设定集/{人物三视图, 道具三视图, 场景概念图}/`），统一按 `NN_名称.jpg` 命名。
 

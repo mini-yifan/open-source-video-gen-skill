@@ -20,9 +20,9 @@ metadata:
 在 AutoDL 应用实例的 ComfyUI 里跑 **MiniMax Music 3**（DiT + 专属 text encoder + DAV VAE），
 一键完成 **开机 → 提交 → 轮询 → scp 下载 → ffprobe 校验 → 关机**。单首曲目全程约 2~4 分钟。
 
-- 开关机/SSH 通道来自 [`autodl-app-instance`](../../autodl-app-instance/SKILL.md) 与
+- 开关机/SSH 通道来自 [`autodl-app-instance`](../autodl-app-instance/SKILL.md) 与
   minimax-h3 技能的 `connect_server.py`，本技能只管音乐生成。
-- 视频生成走 [`minimax-h3`](../../minimax-h3/SKILL.md)，两者共用同一实例批次时遵循
+- 视频生成走 [`minimax-h3`](../minimax-h3/SKILL.md)，两者共用同一实例批次时遵循
   autodl-app-instance 的批次契约：**整批只开一次机、全部完成后只关一次机**。
 
 ## 前置条件
@@ -40,7 +40,7 @@ metadata:
 ## 生成一条音乐（核心命令）
 
 ```bash
-python3 "$ZCODE_HOME/.zcode/skills/minimax-music-gen/scripts/generate_music.py" \
+python3 "${ZCODE_HOME:-$HOME/.zcode}/skills/minimax-music-gen/scripts/generate_music.py" \
   --uuid pro-7880531ea6b3 \
   --caption "<英文三段式曲风描述，见 references/prompt_guide.md>" \
   --lyrics "<中文歌词，含 [verse]/[chorus]/[bridge]/[outro] 标记>" \

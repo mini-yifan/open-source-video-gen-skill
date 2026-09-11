@@ -8,7 +8,11 @@
 | 🟡 默认可换 | [生图能力](#2-默认可换生图优先-agent-自带备选-cursor)（优先 Agent 自带生图） | 有自带生图就零配置；没有时 AI 会引导你登录 Cursor，或改用其他生图工具 |
 | 🟢 可选增强 | [音乐生成](#3-可选增强音乐生成minimax-music-3) 与 [Qwen3-TTS 配音](#另一个可选增强qwen3-tts-配音)（同一实例同一 Token，无需新凭证） | 各自跳过；**H3 生成的视频自带音轨与对白，成片照样有声** |
 
-配置完任何一步，都可以跑 [一键自检](#5-一键自检) 验证。
+配置完任何一步，都可以跑 [一键自检](#5-一键自检) 验证。Python 脚本依赖见仓库根目录 `requirements.txt`（至少 `httpx`；滤镜另需 `numpy` / `opencv-python`）：
+
+```bash
+pip3 install -r requirements.txt
+```
 
 ---
 
@@ -96,7 +100,7 @@ Agent 环境自带生图能力（如 Codex 的内置 ImageGen）就零配置直�
 
 - 复用第 1 节的 AutoDL 实例与 Token，无需新凭证。
 - 面部参考图的生图遵循第 2 节的优先级：Agent 自带生图优先，备选 Cursor。
-- 本地额外依赖：`numpy` 与 `opencv-python`（`pip3 install numpy opencv-python`，供技能自带的美肤提亮滤镜脚本使用）；`ffmpeg` / `ffprobe` 见第 5 节清单。
+- 本地额外依赖：`numpy` 与 `opencv-python`（`pip3 install numpy opencv-python` 或 `pip3 install -r requirements.txt`，供技能自带的美肤提亮滤镜脚本使用）；`ffmpeg` / `ffprobe` 见第 5 节清单。
 
 不装也不影响短剧全流程；需要时尚单片时直接对 AI 说「用 beauty-video-gen 生成……」即可。
 
@@ -111,7 +115,7 @@ bash scripts/doctor.sh --probe  # 额外真实探活（调 AutoDL API 列实例�
 
 也可以直接对 AI 说「检查一下环境配置」，它会跑这个脚本并逐项解释缺什么、怎么补。
 
-本地工具清单（`doctor.sh` 会一并检查）：`python3`、`node`、`ffmpeg`、`ffprobe`、`curl`。macOS 可用 `brew install ffmpeg` 补齐；Windows 10+ 自带 `curl.exe`。`expect`/`sshpass` 只有在走 SSH 兜底时才需要（macOS 自带 expect），**开机找面板不需要它们**——面板发现走 AutoDL 快照 API 的服务域名并行直探，三大系统通用。
+本地工具清单（`doctor.sh` 会一并检查）：`python3`（3.9+）、`httpx`（`pip3 install -r requirements.txt`）、`node`、`ffmpeg`、`ffprobe`、`curl`。macOS 可用 `brew install ffmpeg` 补齐；Windows 10+ 自带 `curl.exe`。`expect` 是 **音乐生成 scp / TTS SSH** 的硬依赖（macOS 自带，Linux：`sudo apt install expect`）；`sshpass` 只用于面板发现的 SSH 兜底。**开机找面板不需要 expect**——面板发现走 AutoDL 快照 API 的服务域名并行直探，三大系统通用。
 
 ---
 
@@ -125,11 +129,13 @@ bash scripts/doctor.sh --probe  # 额外真实探活（调 AutoDL API 列实例�
 | 音乐报「当前算力规格暂无库存」 | MINIMAX-H3 实例抢不到 GPU（可选能力） | 脚本每 30s 自动重试；连续失败则跳过独立配乐，稍后补生成 |
 | 音乐生成失败 / 实例连不上 | 实例没开机、模型缺失或提交被拒 | AI 跳过该 cue 并交付自带音轨母版，列明未生成清单；按 generate_music.py 的输出定位原因 |
 | TTS 报 `TTS_NODE_MISSING` | 实例未预装 Qwen3TTS 节点（可选能力） | 换预装节点与模型的实例；不在视频实例上临时安装 |
-| `--doctor` 报 `logged_in: false` | Cursor Agent 未登录 | `cursor-agent login` 或设 `CURSOR_API_KEY`；或改用其他生图工具 |
+| `--doctor` 报 `logged_in: false` | Cursor Agent 未登录 | 生图优先用 Agent 自带能力；点名 Cursor 时再 `cursor-agent login` 或设 `CURSOR_API_KEY` |
+| `ModuleNotFoundError: httpx` | 未安装 Python 依赖 | `pip3 install -r requirements.txt` 或 `pip3 install httpx` |
+| 音乐/TTS 报需要 expect | Linux/Windows 未装 expect | `sudo apt install expect`（macOS 自带）；视频生成不需要 |
 | 脚本能跑但 Agent 报缺 Token | 非交互 shell 不加载 `~/.zshrc` | 用 `~/.config/autodl.env` 私有文件方案 |
 
 ## 安全约定
 
 - Key/Token 永远不进仓库、不进提示词、不进命令行参数（所有脚本只认环境变量或私有文件）。
 - 私有文件权限 600：`chmod 600 ~/.config/*.env`。
-- 本仓库 `.gitignore` 已挡住 `.env`、`*.token`、`*.key`，误放也会被忽略。
+- 本仓库 `.gitignore` 已挡住 `.env`、`.env.*`、`*.token`、`*.key`、`*.pem`，误放也会被忽略。

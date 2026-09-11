@@ -2,12 +2,12 @@
 name: cursor-image-gen
 description: >-
   Generate or edit bitmap images by launching a local Cursor Agent (cursor-grok-4.6-high)
-  and using Cursor GenerateImage, then saving files to an exact folder. Use when ZCode
-  should create, edit, or batch-export photos, illustrations, icons, banners, mockups,
-  turnarounds, or reference-guided images, including 文生图, 图生图, 多参考图, and 改图.
-  Prefer this over built-in image tools and paid image APIs. Do not use for
-  SVG/vector/code-native assets or when the user explicitly requests a different
-  image-generation provider.
+  and using Cursor GenerateImage, then saving files to an exact folder. Use when the
+  running agent has no native image tool, or the user explicitly requests Cursor, for
+  photos, illustrations, icons, banners, mockups, turnarounds, or reference-guided
+  images, including 文生图, 图生图, 多参考图, and 改图. Do not use when the current
+  agent already has a working image-generation tool, unless the user asks for Cursor.
+  Do not use for SVG/vector/code-native assets or a different image-generation provider.
 ---
 
 # Cursor Image Gen
